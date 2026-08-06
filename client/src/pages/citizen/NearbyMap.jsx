@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import { MapPin, ThumbsUp } from 'lucide-react';
 import { getAllForMap } from '../../api/complaints';
 import { getMarkerColor, truncate, getStatusBadgeClass } from '../../lib/utils';
@@ -67,7 +67,7 @@ export default function NearbyMap() {
           options={{ disableDefaultUI: false, zoomControl: true, streetViewControl: false }}
         >
           {complaints.map((c) => (
-            <Marker
+            <MarkerF
               key={c._id}
               position={{ lat: c.latitude, lng: c.longitude }}
               onClick={() => setSelected(c)}
@@ -85,7 +85,7 @@ export default function NearbyMap() {
           ))}
 
           {selected && (
-            <InfoWindow
+            <InfoWindowF
               position={{ lat: selected.latitude, lng: selected.longitude }}
               onCloseClick={() => setSelected(null)}
             >
@@ -117,7 +117,7 @@ export default function NearbyMap() {
                   View Details
                 </button>
               </div>
-            </InfoWindow>
+            </InfoWindowF>
           )}
         </GoogleMap>
       </div>

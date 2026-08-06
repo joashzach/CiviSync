@@ -58,10 +58,19 @@ Guidelines:
       });
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents,
-    });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents,
+      });
+    } catch (e1) {
+      console.warn('⚠️ gemini-1.5-flash attempt failed, trying gemini-2.0-flash:', e1.message);
+      response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents,
+      });
+    }
 
     const text = (response.text || '').trim();
     const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');

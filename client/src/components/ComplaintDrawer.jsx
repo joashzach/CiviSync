@@ -4,7 +4,7 @@ import {
   ThumbsUp, User, ExternalLink, ChevronDown, Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import { getComplaint, toggleSupport, updateComplaintStatus, deleteComplaint } from '../api/complaints';
 import { getStatusBadgeClass, getSeverityBadgeClass, getMarkerColor } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -247,7 +247,7 @@ export default function ComplaintDrawer({ complaintId, onClose, onUpdated }) {
                       zoom={15}
                       options={{ disableDefaultUI: true, zoomControl: true }}
                     >
-                      <Marker
+                      <MarkerF
                         position={{ lat: complaint.latitude, lng: complaint.longitude }}
                         icon={{
                           path: window.google.maps.SymbolPath.CIRCLE,

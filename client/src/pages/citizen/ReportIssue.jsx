@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   MapPin, Sparkles, CheckCircle2, AlertCircle, ChevronRight, LocateFixed,
 } from 'lucide-react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import ImageUpload from '../../components/ImageUpload';
 import DuplicateModal from '../../components/DuplicateModal';
 import { analyzeImage } from '../../api/ai';
@@ -252,7 +252,7 @@ export default function ReportIssue() {
                     onClick={handleMapClick}
                     options={{ disableDefaultUI: true, zoomControl: true }}
                   >
-                    <Marker
+                    <MarkerF
                       position={location}
                       draggable={true}
                       onDragEnd={handleMarkerDragEnd}
