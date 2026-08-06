@@ -1,14 +1,19 @@
 const Complaint = require('../models/Complaint');
 const mongoose = require('mongoose');
 
+const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+
 /**
  * Helper to build department query filter for officials.
  * If user is an official, forces department filter to their assigned department.
  */
 const applyDepartmentScope = (req, filter) => {
   if (req.user && req.user.role === 'official' && req.user.department) {
-    // Exact or regex match for official's department
-    filter.department = { $regex: new RegExp(req.user.department, 'i') };
+    const regex = new RegExp(escapeRegex(req.user.department), 'i');
+    filter.$or = [
+      { department: { $regex: regex } },
+      { category: { $regex: regex } },
+    ];
   } else if (req.query.department) {
     filter.department = req.query.department;
   }

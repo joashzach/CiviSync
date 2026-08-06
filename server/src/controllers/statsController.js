@@ -1,4 +1,7 @@
 const Complaint = require('../models/Complaint');
+const Official = require('../models/Official');
+
+const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
 /**
  * GET /api/stats
@@ -6,10 +9,27 @@ const Complaint = require('../models/Complaint');
  * (If logged-in user is an official, counts are strictly scoped to their assigned department)
  */
 const getStats = async (req, res) => {
-  const filter = {};
+  let filter = {};
 
-  if (req.user && req.user.role === 'official' && req.user.department) {
-    filter.department = { $regex: new RegExp(req.user.department, 'i') };
+  if (req.user && req.user.role === 'official') {
+    let dept = req.user.department;
+
+    if (!dept && req.user.email) {
+      const official = await Official.findOne({
+        email: { $regex: new RegExp(`^${req.user.email.trim()}$`, 'i') },
+      });
+      if (official) dept = official.department;
+    }
+
+    if (dept) {
+      const regex = new RegExp(escapeRegex(dept), 'i');
+      filter = {
+        $or: [
+          { department: { $regex: regex } },
+          { category: { $regex: regex } },
+        ],
+      };
+    }
   }
 
   const [total, pending, assigned, inProgress, resolved] = await Promise.all([
@@ -20,7 +40,7 @@ const getStats = async (req, res) => {
     Complaint.countDocuments({ ...filter, status: 'Resolved' }),
   ]);
 
-  res.json({ total, pending, assigned, inProgress, resolved });
+  res.json({ total, pending, assigned, inProgress, resolved, department: req.user?.department || null });
 };
 
 /**
