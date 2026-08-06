@@ -42,48 +42,84 @@ Guidelines:
 - Choose the most appropriate department based on what you see
 - For noise, air, water, or smoke issues, choose Pollution Control`;
 
-    const parts = [{ text: prompt }];
+    let base64Image = null;
+    let mimeType = 'image/jpeg';
 
     if (image_url && (image_url.startsWith('http://') || image_url.startsWith('https://'))) {
       try {
-        const imageResponse = await fetch(image_url);
-        const arrayBuffer = await imageResponse.arrayBuffer();
-        const base64Image = Buffer.from(arrayBuffer).toString('base64');
-        const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
-
-        parts.push({
-          inlineData: {
-            data: base64Image,
-            mimeType: mimeType.split(';')[0],
-          },
+        const imageResponse = await fetch(image_url, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
         });
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        base64Image = Buffer.from(arrayBuffer).toString('base64');
+        const contentType = imageResponse.headers.get('content-type');
+        if (contentType) mimeType = contentType.split(';')[0];
       } catch (fetchErr) {
         console.warn('⚠️ Failed to fetch image for AI analysis:', fetchErr.message);
       }
     }
 
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    // Payload formats for @google/genai SDK
+    const contentsPayloads = [];
+
+    if (base64Image) {
+      contentsPayloads.push([
+        prompt,
+        {
+          inlineData: {
+            data: base64Image,
+            mimeType: mimeType,
+          },
+        },
+      ]);
+      contentsPayloads.push([
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { inlineData: { data: base64Image, mimeType: mimeType } },
+          ],
+        },
+      ]);
+    } else {
+      contentsPayloads.push([prompt]);
+    }
+
+    const modelsToTry = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-2.0-flash-exp',
+    ];
     let responseText = null;
     let lastError = null;
 
     for (const modelName of modelsToTry) {
-      try {
-        const result = await ai.models.generateContent({
-          model: modelName,
-          contents: parts,
-        });
+      for (const payload of contentsPayloads) {
+        try {
+          const result = await ai.models.generateContent({
+            model: modelName,
+            contents: payload,
+          });
 
-        if (result && result.text) {
-          responseText = result.text;
-          break;
-        } else if (result && result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-          responseText = result.candidates[0].content.parts[0].text;
-          break;
+          if (result && result.text) {
+            responseText = result.text;
+            break;
+          } else if (result && result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+            responseText = result.candidates[0].content.parts[0].text;
+            break;
+          }
+        } catch (err) {
+          lastError = err;
+          console.warn(`⚠️ Gemini model ${modelName} payload attempt failed:`, err.message);
+
+          // If rate limited (429), wait 1.2s before trying next model/payload
+          if (err.status === 429 || (err.message && err.message.includes('429'))) {
+            await new Promise((r) => setTimeout(r, 1200));
+          }
         }
-      } catch (err) {
-        lastError = err;
-        console.warn(`⚠️ Gemini model ${modelName} failed:`, err.message);
       }
+      if (responseText) break;
     }
 
     if (!responseText) {
@@ -108,8 +144,7 @@ Guidelines:
 
     return res.json(safe);
   } catch (err) {
-    console.error('❌ Gemini AI analysis error:', err);
-    // Generic fallback only if AI call completely fails
+    console.error('❌ Gemini AI analysis error:', err.message || err);
     return res.json({
       title: 'Civic Issue Reported',
       category: 'Sanitation',
