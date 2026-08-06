@@ -42,37 +42,55 @@ Guidelines:
 - Choose the most appropriate department based on what you see
 - For noise, air, water, or smoke issues, choose Pollution Control`;
 
-    const contents = [prompt];
+    const parts = [{ text: prompt }];
 
-    if (image_url.startsWith('http://') || image_url.startsWith('https://')) {
-      const imageResponse = await fetch(image_url);
-      const arrayBuffer = await imageResponse.arrayBuffer();
-      const base64Image = Buffer.from(arrayBuffer).toString('base64');
-      const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+    if (image_url && (image_url.startsWith('http://') || image_url.startsWith('https://'))) {
+      try {
+        const imageResponse = await fetch(image_url);
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(arrayBuffer).toString('base64');
+        const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-      contents.push({
-        inlineData: {
-          data: base64Image,
-          mimeType,
-        },
-      });
+        parts.push({
+          inlineData: {
+            data: base64Image,
+            mimeType: mimeType.split(';')[0],
+          },
+        });
+      } catch (fetchErr) {
+        console.warn('⚠️ Failed to fetch image for AI analysis:', fetchErr.message);
+      }
     }
 
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents,
-      });
-    } catch (e1) {
-      console.warn('⚠️ gemini-1.5-flash attempt failed, trying gemini-2.0-flash:', e1.message);
-      response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents,
-      });
+    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    let responseText = null;
+    let lastError = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const result = await ai.models.generateContent({
+          model: modelName,
+          contents: parts,
+        });
+
+        if (result && result.text) {
+          responseText = result.text;
+          break;
+        } else if (result && result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+          responseText = result.candidates[0].content.parts[0].text;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        console.warn(`⚠️ Gemini model ${modelName} failed:`, err.message);
+      }
     }
 
-    const text = (response.text || '').trim();
+    if (!responseText) {
+      throw lastError || new Error('No response received from Gemini AI models');
+    }
+
+    const text = responseText.trim();
     const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
     const parsed = JSON.parse(cleaned);
 
@@ -88,16 +106,16 @@ Guidelines:
       description: parsed.description || 'A civic issue has been identified at this location.',
     };
 
-    res.json(safe);
+    return res.json(safe);
   } catch (err) {
-    console.warn('⚠️ Gemini AI analysis warning/fallback:', err.message);
-    // Fallback response if GEMINI_API_KEY is missing or API call fails
-    res.json({
-      title: 'Reported Pothole / Infrastructure Issue',
-      category: 'Roads & Highways',
-      department: 'Roads & Highways',
-      severity: 'High',
-      description: 'Road surface damage identified from uploaded photo. Requires prompt inspection.',
+    console.error('❌ Gemini AI analysis error:', err);
+    // Generic fallback only if AI call completely fails
+    return res.json({
+      title: 'Civic Issue Reported',
+      category: 'Sanitation',
+      department: 'Sanitation',
+      severity: 'Medium',
+      description: 'Issue reported at this location. Please inspect the attached photo for details.',
     });
   }
 };
