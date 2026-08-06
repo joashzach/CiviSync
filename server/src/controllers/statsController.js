@@ -10,26 +10,31 @@ const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
  */
 const getStats = async (req, res) => {
   let filter = {};
+  let assignedDept = req.user?.department;
 
-  if (req.user && req.user.role === 'official') {
-    let dept = req.user.department;
-
-    if (!dept && req.user.email) {
-      const official = await Official.findOne({
-        email: { $regex: new RegExp(`^${req.user.email.trim()}$`, 'i') },
-      });
-      if (official) dept = official.department;
+  // Check if official record exists for this user's email if department is not set
+  if (req.user?.email) {
+    const official = await Official.findOne({
+      email: { $regex: new RegExp(`^${req.user.email.trim()}$`, 'i') },
+    });
+    if (official) {
+      assignedDept = official.department;
+      if (req.user) {
+        req.user.role = 'official';
+        req.user.department = official.department;
+      }
     }
+  }
 
-    if (dept) {
-      const regex = new RegExp(escapeRegex(dept), 'i');
-      filter = {
-        $or: [
-          { department: { $regex: regex } },
-          { category: { $regex: regex } },
-        ],
-      };
-    }
+  // If user is an official or has an assigned department, scope stats strictly to that department
+  if ((req.user?.role === 'official' || assignedDept) && assignedDept) {
+    const regex = new RegExp(escapeRegex(assignedDept), 'i');
+    filter = {
+      $or: [
+        { department: { $regex: regex } },
+        { category: { $regex: regex } },
+      ],
+    };
   }
 
   const [total, pending, assigned, inProgress, resolved] = await Promise.all([
@@ -40,7 +45,7 @@ const getStats = async (req, res) => {
     Complaint.countDocuments({ ...filter, status: 'Resolved' }),
   ]);
 
-  res.json({ total, pending, assigned, inProgress, resolved, department: req.user?.department || null });
+  res.json({ total, pending, assigned, inProgress, resolved, department: assignedDept || null });
 };
 
 /**

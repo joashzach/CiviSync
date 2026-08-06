@@ -1,5 +1,4 @@
-const Complaint = require('../models/Complaint');
-const mongoose = require('mongoose');
+const Official = require('../models/Official');
 
 const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
@@ -7,9 +6,24 @@ const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
  * Helper to build department query filter for officials.
  * If user is an official, forces department filter to their assigned department.
  */
-const applyDepartmentScope = (req, filter) => {
-  if (req.user && req.user.role === 'official' && req.user.department) {
-    const regex = new RegExp(escapeRegex(req.user.department), 'i');
+const applyDepartmentScope = async (req, filter) => {
+  let assignedDept = req.user?.department;
+
+  if (req.user?.email && (!assignedDept || req.user.role !== 'official')) {
+    const official = await Official.findOne({
+      email: { $regex: new RegExp(`^${req.user.email.trim()}$`, 'i') },
+    });
+    if (official) {
+      assignedDept = official.department;
+      if (req.user) {
+        req.user.role = 'official';
+        req.user.department = official.department;
+      }
+    }
+  }
+
+  if (assignedDept) {
+    const regex = new RegExp(escapeRegex(assignedDept), 'i');
     filter.$or = [
       { department: { $regex: regex } },
       { category: { $regex: regex } },
@@ -74,13 +88,23 @@ const getComplaints = async (req, res) => {
   if (category) filter.category = category;
 
   // Enforce department scoping for officials
-  applyDepartmentScope(req, filter);
+  await applyDepartmentScope(req, filter);
 
   if (search) {
-    filter.$or = [
+    const searchConditions = [
       { title: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
     ];
+    if (filter.$or) {
+      const deptConditions = filter.$or;
+      delete filter.$or;
+      filter.$and = [
+        { $or: deptConditions },
+        { $or: searchConditions },
+      ];
+    } else {
+      filter.$or = searchConditions;
+    }
   }
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -175,7 +199,7 @@ const getAllForMap = async (req, res) => {
   if (category) filter.category = category;
 
   // Enforce department scoping for officials
-  applyDepartmentScope(req, filter);
+  await applyDepartmentScope(req, filter);
 
   const complaints = await Complaint.find(filter).select(
     'title status latitude longitude category department support_count'
