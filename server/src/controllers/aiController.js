@@ -1,4 +1,4 @@
-const ai = require('../config/gemini');
+const groq = require('../config/groq');
 
 const DEPARTMENTS = [
   'Roads & Highways',
@@ -25,7 +25,7 @@ const analyzeImage = async (req, res) => {
   }
 
   try {
-    const prompt = `You are an AI assistant for a civic issue reporting platform in India.
+    const promptText = `You are an AI assistant for a civic issue reporting platform in India.
 Analyze the provided image and extract the following information about the civic problem shown.
 
 Respond ONLY with a valid JSON object in this exact format (no markdown, no extra text):
@@ -42,92 +42,117 @@ Guidelines:
 - Choose the most appropriate department based on what you see
 - For noise, air, water, or smoke issues, choose Pollution Control`;
 
-    let base64Image = null;
-    let mimeType = 'image/jpeg';
-
-    if (image_url && (image_url.startsWith('http://') || image_url.startsWith('https://'))) {
+    // ── Step 1: Fetch image as base64 ───────────────────────────────────────
+    let base64DataUri = null;
+    if (image_url.startsWith('http://') || image_url.startsWith('https://')) {
       try {
         const imageResponse = await fetch(image_url, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
         });
         const arrayBuffer = await imageResponse.arrayBuffer();
-        base64Image = Buffer.from(arrayBuffer).toString('base64');
-        const contentType = imageResponse.headers.get('content-type');
-        if (contentType) mimeType = contentType.split(';')[0];
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const contentType = (imageResponse.headers.get('content-type') || 'image/jpeg').split(';')[0];
+        base64DataUri = `data:${contentType};base64,${base64}`;
+        console.log('📸 Image fetched for AI analysis, size:', Math.round(arrayBuffer.byteLength / 1024), 'KB');
       } catch (fetchErr) {
-        console.warn('⚠️ Failed to fetch image for AI analysis:', fetchErr.message);
+        console.warn('⚠️ Failed to fetch image:', fetchErr.message);
       }
     }
 
-    // Payload formats for @google/genai SDK
-    const contentsPayloads = [];
-
-    if (base64Image) {
-      contentsPayloads.push([
-        prompt,
-        {
-          inlineData: {
-            data: base64Image,
-            mimeType: mimeType,
-          },
-        },
-      ]);
-      contentsPayloads.push([
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            { inlineData: { data: base64Image, mimeType: mimeType } },
-          ],
-        },
-      ]);
-    } else {
-      contentsPayloads.push([prompt]);
-    }
-
-    const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-lite',
-      'gemini-2.0-flash-exp',
-    ];
+    // ── Step 2: Try vision model (qwen — the only Groq vision model) ──────
     let responseText = null;
-    let lastError = null;
 
-    for (const modelName of modelsToTry) {
-      for (const payload of contentsPayloads) {
-        try {
-          const result = await ai.models.generateContent({
-            model: modelName,
-            contents: payload,
-          });
+    // Attempt A: vision with direct URL (fastest, works if Groq can access the URL)
+    if (!responseText) {
+      try {
+        console.log('🔍 Trying qwen/qwen3.6-27b with image URL...');
+        const result = await groq.chat.completions.create({
+          model: 'qwen/qwen3.6-27b',
+          reasoning_format: 'hidden',
+          temperature: 0.2,
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: promptText },
+              { type: 'image_url', image_url: { url: image_url } },
+            ],
+          }],
+        });
+        responseText = result?.choices?.[0]?.message?.content || null;
+        if (responseText) console.log('✅ qwen vision (URL) succeeded');
+      } catch (err) {
+        console.warn('⚠️ qwen vision (URL) failed:', err.message);
 
-          if (result && result.text) {
-            responseText = result.text;
-            break;
-          } else if (result && result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
-            responseText = result.candidates[0].content.parts[0].text;
-            break;
-          }
-        } catch (err) {
-          lastError = err;
-          console.warn(`⚠️ Gemini model ${modelName} payload attempt failed:`, err.message);
-
-          // If rate limited (429), wait 1.2s before trying next model/payload
-          if (err.status === 429 || (err.message && err.message.includes('429'))) {
-            await new Promise((r) => setTimeout(r, 1200));
-          }
+        if (err.status === 429) {
+          await new Promise((r) => setTimeout(r, 1500));
         }
       }
-      if (responseText) break;
     }
 
+    // Attempt B: vision with base64 data URI (works even if Groq can't access the URL)
+    if (!responseText && base64DataUri) {
+      try {
+        console.log('🔍 Trying qwen/qwen3.6-27b with base64 image...');
+        const result = await groq.chat.completions.create({
+          model: 'qwen/qwen3.6-27b',
+          reasoning_format: 'hidden',
+          temperature: 0.2,
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: promptText },
+              { type: 'image_url', image_url: { url: base64DataUri } },
+            ],
+          }],
+        });
+        responseText = result?.choices?.[0]?.message?.content || null;
+        if (responseText) console.log('✅ qwen vision (base64) succeeded');
+      } catch (err) {
+        console.warn('⚠️ qwen vision (base64) failed:', err.message);
+
+        if (err.status === 429) {
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+    }
+
+    // Attempt C: text-only fallback with a fast non-vision model
+    // llama-3.3-70b-versatile requires content as a plain string, not an array
     if (!responseText) {
-      throw lastError || new Error('No response received from Gemini AI models');
+      try {
+        console.log('🔍 Trying llama-3.3-70b-versatile text-only fallback...');
+        const textOnlyPrompt = `${promptText}\n\nNote: The image is hosted at: ${image_url}\nBased on the URL and context, provide your best analysis. If you cannot determine the issue, classify it as Sanitation with Medium severity.`;
+
+        const result = await groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          temperature: 0.2,
+          max_tokens: 512,
+          messages: [{
+            role: 'user',
+            content: textOnlyPrompt,
+          }],
+        });
+        responseText = result?.choices?.[0]?.message?.content || null;
+        if (responseText) console.log('✅ llama text-only fallback succeeded');
+      } catch (err) {
+        console.warn('⚠️ llama text-only fallback failed:', err.message);
+      }
     }
 
-    const text = responseText.trim();
-    const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
+    // ── Step 3: Parse the response ──────────────────────────────────────────
+    if (!responseText) {
+      throw new Error('All Groq AI attempts failed — no response received');
+    }
+
+    // Strip any residual <think> blocks and markdown code fences
+    const cleaned = responseText
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^```json?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
     const parsed = JSON.parse(cleaned);
 
     const matchedDept = DEPARTMENTS.includes(parsed.department || parsed.category)
@@ -142,9 +167,10 @@ Guidelines:
       description: parsed.description || 'A civic issue has been identified at this location.',
     };
 
+    console.log('🎯 AI analysis result:', safe.title, '|', safe.department, '|', safe.severity);
     return res.json(safe);
   } catch (err) {
-    console.error('❌ Gemini AI analysis error:', err.message || err);
+    console.error('❌ Groq AI analysis error:', err.message || err);
     return res.json({
       title: 'Civic Issue Reported',
       category: 'Sanitation',

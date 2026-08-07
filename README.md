@@ -15,7 +15,7 @@ Built for Smart India Hackathon — a complete end-to-end MVP prototype.
 | Backend | Node.js + Express |
 | Auth | Supabase Auth |
 | Database | MongoDB Atlas |
-| AI | Google Gemini 1.5 Flash |
+| AI | Groq AI (Llama 4 Vision) |
 | Maps | Google Maps JavaScript API |
 | Images | Cloudinary |
 
@@ -35,7 +35,7 @@ CiviSync/
 │   │   └── pages/       # All pages
 ├── server/          # Node.js + Express backend
 │   ├── src/
-│   │   ├── config/      # DB, Cloudinary, Gemini, Supabase
+│   │   ├── config/      # DB, Cloudinary, Groq, Firebase
 │   │   ├── controllers/ # Route handlers
 │   │   ├── middleware/  # Auth, role guard
 │   │   ├── models/      # Mongoose models
@@ -65,7 +65,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_API_KEY=...
 CLOUDINARY_API_SECRET=...
-GEMINI_API_KEY=...
+GROQ_API_KEY=...
 PORT=5000
 ```
 
@@ -108,7 +108,7 @@ This starts both client (http://localhost:5173) and server (http://localhost:500
 1. Open http://localhost:5173
 2. Sign up as a citizen (any email)
 3. Login → redirected to Citizen Dashboard
-4. Click **Report Issue** → upload a photo → Gemini AI auto-fills the form
+4. Click **Report Issue** → upload a photo → Groq AI auto-fills the form
 5. Submit the complaint
 6. Login as an official (email seeded in officials collection)
 7. View complaint in Official Dashboard table
@@ -122,7 +122,7 @@ This starts both client (http://localhost:5173) and server (http://localhost:500
 |--------|------|------|-------------|
 | POST | `/api/auth/login` | ✓ | Resolve role after Supabase sign-in |
 | POST | `/api/upload` | ✓ | Upload image to Cloudinary |
-| POST | `/api/ai/analyze` | ✓ | Gemini AI analysis of image |
+| POST | `/api/ai/analyze` | ✓ | Groq AI analysis of image |
 | GET | `/api/stats` | — | Platform-wide complaint counts |
 | GET | `/api/stats/mine` | ✓ | Citizen's own complaint counts |
 | POST | `/api/complaints` | ✓ | Create complaint |
