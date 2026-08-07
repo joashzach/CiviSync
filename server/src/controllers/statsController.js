@@ -12,8 +12,8 @@ const getStats = async (req, res) => {
   let filter = {};
   let assignedDept = req.user?.department;
 
-  // Check if official record exists for this user's email if department is not set
-  if (req.user?.email) {
+  // Resolve department from Official collection if not present on req.user
+  if (req.user?.email && (!assignedDept || req.user.role !== 'official')) {
     const official = await Official.findOne({
       email: { $regex: new RegExp(`^${req.user.email.trim()}$`, 'i') },
     });
@@ -26,15 +26,10 @@ const getStats = async (req, res) => {
     }
   }
 
-  // If user is an official or has an assigned department, scope stats strictly to that department
+  // Filter strictly by department for officials
   if ((req.user?.role === 'official' || assignedDept) && assignedDept) {
     const regex = new RegExp(escapeRegex(assignedDept), 'i');
-    filter = {
-      $or: [
-        { department: { $regex: regex } },
-        { category: { $regex: regex } },
-      ],
-    };
+    filter.department = { $regex: regex };
   }
 
   const [total, pending, assigned, inProgress, resolved] = await Promise.all([

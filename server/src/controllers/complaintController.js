@@ -26,10 +26,7 @@ const applyDepartmentScope = async (req, filter) => {
 
   if (assignedDept) {
     const regex = new RegExp(escapeRegex(assignedDept), 'i');
-    filter.$or = [
-      { department: { $regex: regex } },
-      { category: { $regex: regex } },
-    ];
+    filter.department = { $regex: regex };
   } else if (req.query.department) {
     filter.department = req.query.department;
   }
