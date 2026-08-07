@@ -1,4 +1,6 @@
+const Complaint = require('../models/Complaint');
 const Official = require('../models/Official');
+const mongoose = require('mongoose');
 
 const escapeRegex = (str) => str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
