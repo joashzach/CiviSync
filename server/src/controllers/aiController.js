@@ -13,6 +13,56 @@ const DEPARTMENTS = [
 const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 /**
+ * Attempt to repair truncated JSON from LLM output.
+ * Handles common cases: missing closing quotes, braces, brackets.
+ */
+function repairJSON(raw) {
+  let s = raw.trim();
+
+  // Strip markdown fences and <think> blocks
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  s = s.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
+  s = s.trim();
+
+  // Try parsing as-is first
+  try { return JSON.parse(s); } catch (_) { /* continue to repair */ }
+
+  // Close unterminated string: if odd number of unescaped quotes, add one
+  const unescapedQuotes = s.match(/(?<!\\)"/g);
+  if (unescapedQuotes && unescapedQuotes.length % 2 !== 0) {
+    s += '"';
+  }
+
+  // Count open/close braces and brackets, close any unclosed ones
+  const opens = (s.match(/{/g) || []).length;
+  const closes = (s.match(/}/g) || []).length;
+  for (let i = 0; i < opens - closes; i++) s += '}';
+
+  const openBrackets = (s.match(/\[/g) || []).length;
+  const closeBrackets = (s.match(/\]/g) || []).length;
+  for (let i = 0; i < openBrackets - closeBrackets; i++) s += ']';
+
+  // Remove trailing comma before closing brace (invalid JSON)
+  s = s.replace(/,\s*}/g, '}');
+
+  try { return JSON.parse(s); } catch (_) { /* continue */ }
+
+  // More aggressive: find the last complete key-value pair and close the object
+  const lastCompleteValue = s.lastIndexOf('",');
+  if (lastCompleteValue > 0) {
+    const truncated = s.substring(0, lastCompleteValue + 1);
+    const fixedOpens = (truncated.match(/{/g) || []).length;
+    const fixedCloses = (truncated.match(/}/g) || []).length;
+    let fixed = truncated;
+    for (let i = 0; i < fixedOpens - fixedCloses; i++) fixed += '}';
+    try { return JSON.parse(fixed); } catch (_) { /* give up */ }
+  }
+
+  // Give up — throw so caller can fallback
+  throw new Error('Could not repair truncated JSON from AI response');
+}
+
+/**
  * POST /api/ai/analyze
  * Body: { image_url: string }
  * Returns: { category, department, severity, description, title }
@@ -25,22 +75,18 @@ const analyzeImage = async (req, res) => {
   }
 
   try {
-    const promptText = `You are an AI assistant for a civic issue reporting platform in India.
-Analyze the provided image and extract the following information about the civic problem shown.
-
-Respond ONLY with a valid JSON object in this exact format (no markdown, no extra text):
+    const promptText = `You are a civic issue classifier for an Indian municipal platform.
+Look at the image and respond with ONLY a JSON object (no markdown):
 {
-  "title": "Short descriptive title (max 60 chars)",
+  "title": "Brief title under 60 chars",
   "category": "One of: ${DEPARTMENTS.join(' | ')}",
   "department": "Same as category",
   "severity": "One of: ${SEVERITIES.join(' | ')}",
-  "description": "Detailed description of the issue in 2-3 sentences, suitable for a formal complaint."
+  "description": "1-2 sentence description of the civic issue."
 }
-
-Guidelines:
-- severity: Low = minor inconvenience, Medium = affects daily life, High = safety risk, Critical = immediate danger
-- Choose the most appropriate department based on what you see
-- For noise, air, water, or smoke issues, choose Pollution Control`;
+Severity guide: Low=inconvenience, Medium=daily life, High=safety risk, Critical=immediate danger.
+For pollution issues (noise/air/water/smoke), use Pollution Control.
+Keep the description SHORT (under 150 chars).`;
 
     // ── Step 1: Fetch image as base64 ───────────────────────────────────────
     let base64DataUri = null;
@@ -62,7 +108,7 @@ Guidelines:
     // ── Step 2: Try vision model (qwen — the only Groq vision model) ──────
     let responseText = null;
 
-    // Attempt A: vision with direct URL (fastest, works if Groq can access the URL)
+    // Attempt A: vision with direct URL (fastest)
     if (!responseText) {
       try {
         console.log('🔍 Trying qwen/qwen3.6-27b with image URL...');
@@ -70,7 +116,7 @@ Guidelines:
           model: 'qwen/qwen3.6-27b',
           reasoning_format: 'hidden',
           temperature: 0.2,
-          max_tokens: 1024,
+          max_tokens: 4096,
           messages: [{
             role: 'user',
             content: [
@@ -83,14 +129,13 @@ Guidelines:
         if (responseText) console.log('✅ qwen vision (URL) succeeded');
       } catch (err) {
         console.warn('⚠️ qwen vision (URL) failed:', err.message);
-
         if (err.status === 429) {
           await new Promise((r) => setTimeout(r, 1500));
         }
       }
     }
 
-    // Attempt B: vision with base64 data URI (works even if Groq can't access the URL)
+    // Attempt B: vision with base64 data URI
     if (!responseText && base64DataUri) {
       try {
         console.log('🔍 Trying qwen/qwen3.6-27b with base64 image...');
@@ -98,7 +143,7 @@ Guidelines:
           model: 'qwen/qwen3.6-27b',
           reasoning_format: 'hidden',
           temperature: 0.2,
-          max_tokens: 1024,
+          max_tokens: 4096,
           messages: [{
             role: 'user',
             content: [
@@ -111,15 +156,13 @@ Guidelines:
         if (responseText) console.log('✅ qwen vision (base64) succeeded');
       } catch (err) {
         console.warn('⚠️ qwen vision (base64) failed:', err.message);
-
         if (err.status === 429) {
           await new Promise((r) => setTimeout(r, 1500));
         }
       }
     }
 
-    // Attempt C: text-only fallback with a fast non-vision model
-    // llama-3.3-70b-versatile requires content as a plain string, not an array
+    // Attempt C: text-only fallback with llama (no image, string content)
     if (!responseText) {
       try {
         console.log('🔍 Trying llama-3.3-70b-versatile text-only fallback...');
@@ -146,14 +189,8 @@ Guidelines:
       throw new Error('All Groq AI attempts failed — no response received');
     }
 
-    // Strip any residual <think> blocks and markdown code fences
-    const cleaned = responseText
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
-      .replace(/^```json?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-
-    const parsed = JSON.parse(cleaned);
+    console.log('📝 Raw AI response length:', responseText.length, 'chars');
+    const parsed = repairJSON(responseText);
 
     const matchedDept = DEPARTMENTS.includes(parsed.department || parsed.category)
       ? (parsed.department || parsed.category)
