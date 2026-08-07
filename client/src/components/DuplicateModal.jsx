@@ -8,12 +8,6 @@ import toast from 'react-hot-toast';
 
 /**
  * DuplicateModal — shown when a near-duplicate complaint is detected.
- *
- * Props:
- *  - duplicate:     The duplicate complaint object
- *  - onSupported:   Called after the user successfully supports the existing complaint
- *  - onReportAnyway: Called when user decides to file their complaint regardless
- *  - onClose:       Called to dismiss modal without action
  */
 export default function DuplicateModal({ duplicate, onSupported, onReportAnyway, onClose }) {
   const [supporting, setSupporting] = useState(false);
@@ -42,19 +36,20 @@ export default function DuplicateModal({ duplicate, onSupported, onReportAnyway,
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: '#FEF3C7', display: 'flex',
+              background: '#F7EDE6', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
             }}>
-              <AlertTriangle size={18} color="#D97706" />
+              <AlertTriangle size={17} color="#C17D5A" />
             </div>
             <div>
-              <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.2px' }}>
                 Similar Complaint Found
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+              <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>
                 An active complaint already exists nearby
               </p>
             </div>
@@ -62,20 +57,19 @@ export default function DuplicateModal({ duplicate, onSupported, onReportAnyway,
           <button
             onClick={onClose}
             style={{
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: 8, width: 32, height: 32,
+              background: '#F7F5F0', border: '1px solid #E8E5DE',
+              borderRadius: 7, width: 30, height: 30,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', flexShrink: 0,
             }}
           >
-            <X size={16} />
+            <X size={15} color="#6B6B6B" />
           </button>
         </div>
 
         {/* Body */}
         <div className="modal-body">
           <div className="duplicate-card">
-            {/* Image */}
             {duplicate.image_url && (
               <img
                 src={duplicate.image_url}
@@ -85,35 +79,31 @@ export default function DuplicateModal({ duplicate, onSupported, onReportAnyway,
             )}
 
             <div className="duplicate-card-body">
-              {/* Title */}
-              <h4 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+              <h4 style={{ fontSize: 14.5, fontWeight: 700, color: '#1C1C1E', lineHeight: 1.4 }}>
                 {duplicate.title}
               </h4>
 
-              {/* Status badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span className={getStatusBadgeClass(duplicate.status)}>
                   {duplicate.status}
                 </span>
               </div>
 
-              {/* Meta row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                 <div className="duplicate-meta">
-                  <MapPin size={13} />
+                  <MapPin size={12} />
                   <span>{duplicate.latitude.toFixed(4)}, {duplicate.longitude.toFixed(4)}</span>
                 </div>
                 <div className="supporter-pill">
-                  <Users size={13} />
+                  <Users size={12} />
                   <span>{duplicate.support_count} supporter{duplicate.support_count !== 1 ? 's' : ''}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Hint text */}
           <p style={{
-            fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,
+            fontSize: 13, color: '#3A3A3C', lineHeight: 1.65,
             marginTop: 16, textAlign: 'center',
           }}>
             Supporting an existing complaint increases its priority and helps officials respond faster.
@@ -128,7 +118,7 @@ export default function DuplicateModal({ duplicate, onSupported, onReportAnyway,
             onClick={handleSupport}
             disabled={supporting}
           >
-            <ThumbsUp size={18} />
+            <ThumbsUp size={17} />
             {supporting ? 'Adding Support...' : 'Support Existing Complaint'}
           </button>
           <button
@@ -136,7 +126,7 @@ export default function DuplicateModal({ duplicate, onSupported, onReportAnyway,
             style={{ width: '100%' }}
             onClick={onReportAnyway}
           >
-            <FileText size={16} />
+            <FileText size={15} />
             Report Anyway
           </button>
         </div>

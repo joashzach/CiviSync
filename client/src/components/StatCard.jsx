@@ -1,4 +1,4 @@
-export default function StatCard({ icon, value, label, color = '#2563EB', bgColor = '#EFF6FF' }) {
+export default function StatCard({ icon, value, label, color = '#011410', bgColor = '#DFF0D8' }) {
   return (
     <div className="card stat-card card-hover animate-slide-up">
       <div className="stat-icon" style={{ background: bgColor }}>

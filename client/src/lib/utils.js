@@ -20,11 +20,11 @@ export function getSeverityBadgeClass(severity) {
 
 export function getMarkerColor(status) {
   switch (status) {
-    case 'Pending': return '#D97706';
-    case 'Assigned': return '#2563EB';
+    case 'Pending':     return '#D97706';
+    case 'Assigned':   return '#2563EB';
     case 'In Progress': return '#7C3AED';
-    case 'Resolved': return '#16A34A';
-    default: return '#94A3B8';
+    case 'Resolved':   return '#16A34A';
+    default:           return '#94A3B8';
   }
 }
 

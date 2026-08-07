@@ -63,7 +63,7 @@ export default function ImageUpload({ onUploaded, onClear }) {
           }}>
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
-              border: '3px solid #E2E8F0', borderTopColor: 'var(--primary)',
+              border: '2.5px solid #E8E5DE', borderTopColor: '#011410',
               animation: 'spin 0.7s linear infinite',
             }} />
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
@@ -107,10 +107,10 @@ export default function ImageUpload({ onUploaded, onClear }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
         <div style={{
           width: 52, height: 52, borderRadius: 12,
-          background: 'var(--primary-light)',
+          background: '#DFF0D8',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Upload size={22} color="var(--primary)" />
+          <Upload size={22} color="#011410" />
         </div>
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  MapPin, Sparkles, CheckCircle2, AlertCircle, ChevronRight, LocateFixed,
+  MapPin, Sparkles, CheckCircle2, LocateFixed,
 } from 'lucide-react';
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 import ImageUpload from '../../components/ImageUpload';
@@ -44,16 +44,10 @@ export default function ReportIssue() {
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
   });
 
-  // Auto-detect location on mount
-  useEffect(() => {
-    detectLocation();
-  }, []);
+  useEffect(() => { detectLocation(); }, []);
 
-  // Auto-trigger AI analysis when image is uploaded
   useEffect(() => {
-    if (imageUrl) {
-      runAIAnalysis(imageUrl);
-    }
+    if (imageUrl) { runAIAnalysis(imageUrl); }
   }, [imageUrl]);
 
   const detectLocation = async () => {
@@ -61,7 +55,7 @@ export default function ReportIssue() {
     try {
       const loc = await getCurrentUserLocation();
       setLocation(loc);
-    } catch (err) {
+    } catch {
       setLocation({ lat: 12.9716, lng: 77.5946 });
     } finally {
       setLocating(false);
@@ -82,7 +76,7 @@ export default function ReportIssue() {
       });
       setAiDone(true);
       toast.success('AI analysis complete! Review and submit.');
-    } catch (err) {
+    } catch {
       toast.error('AI analysis failed. Please fill in the form manually.');
     } finally {
       setAnalyzing(false);
@@ -100,7 +94,7 @@ export default function ReportIssue() {
       });
       toast.success('Complaint submitted successfully!');
       navigate('/citizen/complaints');
-    } catch (err) {
+    } catch {
       toast.error('Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
@@ -112,11 +106,8 @@ export default function ReportIssue() {
     if (!imageUrl) { toast.error('Please upload an image'); return; }
     if (!location) { toast.error('Location not detected'); return; }
     if (!form.title || !form.category || !form.department || !form.severity) {
-      toast.error('Please fill in all required fields');
-      return;
+      toast.error('Please fill in all required fields'); return;
     }
-
-    // Check for nearby duplicates before submitting
     setSubmitting(true);
     try {
       const duplicates = await checkDuplicates(form.category, location.lat, location.lng);
@@ -126,10 +117,7 @@ export default function ReportIssue() {
         setSubmitting(false);
         return;
       }
-    } catch {
-      // If check fails, proceed with normal submission
-    }
-
+    } catch { /* proceed */ }
     await submitComplaint();
   };
 
@@ -170,12 +158,12 @@ export default function ReportIssue() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          {/* ── Left Column ─────────────────────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
+          {/* ── Left Column ───────────────────────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {/* Image Upload */}
             <div className="card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 14, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
                 Issue Photo
               </h3>
               <ImageUpload
@@ -186,32 +174,37 @@ export default function ReportIssue() {
 
             {/* AI Status */}
             {imageUrl && (
-              <div className="card" style={{ padding: 18 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="card" style={{ padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   {analyzing ? (
                     <>
                       <div style={{
                         width: 20, height: 20, borderRadius: '50%',
-                        border: '2.5px solid #E2E8F0', borderTopColor: 'var(--primary)',
+                        border: '2.5px solid #E8E5DE', borderTopColor: '#011410',
                         animation: 'spin 0.7s linear infinite', flexShrink: 0,
                       }} />
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                          Analyzing with Gemini AI...
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>
+                          Analysing with AI...
                         </p>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>
                           Detecting category, department & severity
                         </p>
                       </div>
                     </>
                   ) : aiDone ? (
                     <>
-                      <CheckCircle2 size={20} color="var(--success)" style={{ flexShrink: 0 }} />
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8, background: '#DFF0D8',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <CheckCircle2 size={17} color="#011410" />
+                      </div>
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#011410' }}>
                           AI Analysis Complete
                         </p>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>
                           Form auto-filled. Review before submitting.
                         </p>
                       </div>
@@ -222,13 +215,11 @@ export default function ReportIssue() {
             )}
 
             {/* Map Preview */}
-            <div className="card" style={{ padding: 20 }}>
+            <div className="card" style={{ padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Issue Location
-                  </h3>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#1C1C1E' }}>Issue Location</h3>
+                  <p style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 2 }}>
                     Default is your current location. Click map to change.
                   </p>
                 </div>
@@ -238,12 +229,12 @@ export default function ReportIssue() {
                   onClick={detectLocation}
                   disabled={locating}
                 >
-                  <LocateFixed size={13} />
+                  <LocateFixed size={12} />
                   {locating ? 'Locating...' : 'My Location'}
                 </button>
               </div>
 
-              <div className="map-container" style={{ height: 210, borderRadius: 12, overflow: 'hidden' }}>
+              <div className="map-container" style={{ height: 210, borderRadius: 10, overflow: 'hidden' }}>
                 {isLoaded && location ? (
                   <GoogleMap
                     mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -258,9 +249,9 @@ export default function ReportIssue() {
                       onDragEnd={handleMarkerDragEnd}
                       icon={{
                         path: window.google.maps.SymbolPath.CIRCLE,
-                        fillColor: '#2563EB',
+                        fillColor: '#011410',
                         fillOpacity: 1,
-                        strokeColor: '#fff',
+                        strokeColor: '#FAFAF7',
                         strokeWeight: 3,
                         scale: 10,
                       }}
@@ -268,12 +259,12 @@ export default function ReportIssue() {
                   </GoogleMap>
                 ) : (
                   <div style={{
-                    height: '100%', background: '#F1F5F9',
+                    height: '100%', background: '#DFF0D8',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexDirection: 'column', gap: 8,
                   }}>
-                    <MapPin size={24} color="var(--text-muted)" />
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    <MapPin size={22} color="#4A7A44" />
+                    <p style={{ fontSize: 13, color: '#6B6B6B' }}>
                       {locating ? 'Detecting location...' : 'Location not available'}
                     </p>
                   </div>
@@ -281,31 +272,34 @@ export default function ReportIssue() {
               </div>
 
               {location && (
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                  📍 Pin: {location.lat.toFixed(4)}, {location.lng.toFixed(4)} (Click map or drag pin to adjust)
+                <p style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 8 }}>
+                  📍 {location.lat.toFixed(4)}, {location.lng.toFixed(4)} — Click map or drag pin to adjust
                 </p>
               )}
             </div>
           </div>
 
-          {/* ── Right Column ─────────────────────────────────────────────────── */}
+          {/* ── Right Column ──────────────────────────────────────────────── */}
           <div className="card" style={{ padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-              <Sparkles size={16} color="var(--primary)" />
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: '#DFF0D8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Sparkles size={15} color="#011410" />
+              </div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
                 Complaint Details
               </h3>
               {aiDone && (
                 <span style={{
-                  fontSize: 11, background: 'var(--primary-light)', color: 'var(--primary)',
-                  padding: '2px 8px', borderRadius: 100, fontWeight: 500,
+                  fontSize: 11, background: '#DFF0D8', color: '#011410',
+                  padding: '2px 9px', borderRadius: 100, fontWeight: 600,
+                  border: '1px solid rgba(26,58,10,0.2)',
                 }}>
                   AI Filled
                 </span>
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
               {/* Title */}
               <div>
                 <label className="label">Complaint Title *</label>
@@ -318,7 +312,7 @@ export default function ReportIssue() {
                 />
               </div>
 
-              {/* Category & Department */}
+              {/* Category & Severity */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label className="label">Category *</label>
@@ -362,15 +356,14 @@ export default function ReportIssue() {
               <button
                 type="submit"
                 className="btn btn-primary btn-lg"
-                style={{ width: '100%', marginTop: 4 }}
+                style={{ width: '100%', marginTop: 6 }}
                 disabled={submitting || !imageUrl || !location}
               >
                 {submitting ? 'Submitting...' : 'Submit Complaint'}
-                {!submitting && <ChevronRight size={16} />}
               </button>
 
               {!imageUrl && (
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: '#6B6B6B', textAlign: 'center' }}>
                   Upload an image to enable submission
                 </p>
               )}
