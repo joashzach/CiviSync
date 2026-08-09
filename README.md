@@ -44,18 +44,18 @@ complaint management.
 
 # Tech Stack
 
-  Category         Technology
-  ---------------- ----------------------------
-  Frontend         React + Vite
-  Styling          Tailwind CSS
-  Backend          Node.js + Express
-  Authentication   Firebase Auth
-  Database         MongoDB
-  AI               Groq API
-  Maps             Google Maps JavaScript API
-  Image Storage    Cloudinary
-  Icons            Lucide React
-  Font             Poppins
+| Category | Technology |
+|----------|------------|
+| Frontend | React + Vite |
+| Styling | Tailwind CSS |
+| Backend | Node.js + Express |
+| Authentication | Firebase Auth |
+| Database | MongoDB |
+| AI | Groq API |
+| Maps | Google Maps JavaScript API |
+| Image Storage | Cloudinary |
+| Icons | Lucide React |
+| Font | Poppins |
 
 ------------------------------------------------------------------------
 
