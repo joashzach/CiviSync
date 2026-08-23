@@ -4,7 +4,7 @@ import {
   ThumbsUp, User, ExternalLink, Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import { getComplaint, toggleSupport, updateComplaintStatus, deleteComplaint } from '../api/complaints';
 import { getStatusBadgeClass, getSeverityBadgeClass, getMarkerColor } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
@@ -21,9 +21,7 @@ export default function ComplaintDrawer({ complaintId, onClose, onUpdated }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
+
 
   useEffect(() => {
     if (!complaintId) return;
@@ -220,31 +218,35 @@ export default function ComplaintDrawer({ complaintId, onClose, onUpdated }) {
               )}
 
               {/* Map */}
-              {complaint.latitude && complaint.longitude && isLoaded && (
+              {complaint.latitude && complaint.longitude && (
                 <div>
                   <p className="label" style={{ marginBottom: 8 }}>Location</p>
-                  <div className="map-container" style={{ height: 200 }}>
-                    <GoogleMap
-                      mapContainerStyle={{ width: '100%', height: '100%' }}
-                      center={{ lat: complaint.latitude, lng: complaint.longitude }}
+                  <div style={{ height: 200, borderRadius: 12, overflow: 'hidden', border: '1px solid #E8E5DE', zIndex: 0 }}>
+                    <MapContainer
+                      center={[complaint.latitude, complaint.longitude]}
                       zoom={15}
-                      options={{ disableDefaultUI: true, zoomControl: true }}
+                      style={{ width: '100%', height: 200 }}
+                      scrollWheelZoom={false}
+                      dragging={false}
+                      zoomControl={false}
+                      doubleClickZoom={false}
+                      attributionControl={false}
                     >
-                      <MarkerF
-                        position={{ lat: complaint.latitude, lng: complaint.longitude }}
-                        icon={{
-                          path: window.google.maps.SymbolPath.CIRCLE,
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      <CircleMarker
+                        center={[complaint.latitude, complaint.longitude]}
+                        radius={10}
+                        pathOptions={{
+                          color: '#fff',
+                          weight: 2.5,
                           fillColor: getMarkerColor(complaint.status),
                           fillOpacity: 1,
-                          strokeColor: '#FAFAF7',
-                          strokeWeight: 2.5,
-                          scale: 10,
                         }}
                       />
-                    </GoogleMap>
+                    </MapContainer>
                   </div>
                   <a
-                    href={`https://www.google.com/maps?q=${complaint.latitude},${complaint.longitude}`}
+                    href={`https://www.openstreetmap.org/?mlat=${complaint.latitude}&mlon=${complaint.longitude}&zoom=16`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -253,7 +255,7 @@ export default function ComplaintDrawer({ complaintId, onClose, onUpdated }) {
                       textDecoration: 'none', fontWeight: 500,
                     }}
                   >
-                    <MapPin size={13} /> Open in Google Maps <ExternalLink size={12} />
+                    <MapPin size={13} /> Open in OpenStreetMap <ExternalLink size={12} />
                   </a>
                 </div>
               )}

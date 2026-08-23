@@ -105,18 +105,17 @@ Keep the description SHORT (under 150 chars).`;
       }
     }
 
-    // ── Step 2: Try vision model (qwen — the only Groq vision model) ──────
+    // ── Step 2: Try vision model (qwen/qwen3.6-27b) ──────────────────────────
     let responseText = null;
 
-    // Attempt A: vision with direct URL (fastest)
+    // Attempt A: vision with direct URL
     if (!responseText) {
       try {
         console.log('🔍 Trying qwen/qwen3.6-27b with image URL...');
         const result = await groq.chat.completions.create({
           model: 'qwen/qwen3.6-27b',
-          reasoning_format: 'hidden',
           temperature: 0.2,
-          max_tokens: 4096,
+          max_tokens: 1024,
           messages: [{
             role: 'user',
             content: [
@@ -129,8 +128,8 @@ Keep the description SHORT (under 150 chars).`;
         if (responseText) console.log('✅ qwen vision (URL) succeeded');
       } catch (err) {
         console.warn('⚠️ qwen vision (URL) failed:', err.message);
-        if (err.status === 429) {
-          await new Promise((r) => setTimeout(r, 1500));
+        if (err.message?.includes('model_permission_blocked_project')) {
+          console.warn('👉 To enable vision model, allow `qwen/qwen3.6-27b` at: https://console.groq.com/settings/project/limits');
         }
       }
     }
@@ -141,9 +140,8 @@ Keep the description SHORT (under 150 chars).`;
         console.log('🔍 Trying qwen/qwen3.6-27b with base64 image...');
         const result = await groq.chat.completions.create({
           model: 'qwen/qwen3.6-27b',
-          reasoning_format: 'hidden',
           temperature: 0.2,
-          max_tokens: 4096,
+          max_tokens: 1024,
           messages: [{
             role: 'user',
             content: [
@@ -156,31 +154,34 @@ Keep the description SHORT (under 150 chars).`;
         if (responseText) console.log('✅ qwen vision (base64) succeeded');
       } catch (err) {
         console.warn('⚠️ qwen vision (base64) failed:', err.message);
-        if (err.status === 429) {
-          await new Promise((r) => setTimeout(r, 1500));
-        }
       }
     }
 
-    // Attempt C: text-only fallback with llama (no image, string content)
+    // Attempt C: fallback with available text models (openai/gpt-oss-20b, openai/gpt-oss-120b)
     if (!responseText) {
-      try {
-        console.log('🔍 Trying llama-3.3-70b-versatile text-only fallback...');
-        const textOnlyPrompt = `${promptText}\n\nNote: The image is hosted at: ${image_url}\nBased on the URL and context, provide your best analysis. If you cannot determine the issue, classify it as Sanitation with Medium severity.`;
+      const fallbackModels = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
+      for (const fallbackModel of fallbackModels) {
+        try {
+          console.log(`🔍 Trying ${fallbackModel} text analysis fallback...`);
+          const textOnlyPrompt = `${promptText}\n\nImage URL context: ${image_url}\nPlease provide civic issue classification JSON.`;
 
-        const result = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0.2,
-          max_tokens: 512,
-          messages: [{
-            role: 'user',
-            content: textOnlyPrompt,
-          }],
-        });
-        responseText = result?.choices?.[0]?.message?.content || null;
-        if (responseText) console.log('✅ llama text-only fallback succeeded');
-      } catch (err) {
-        console.warn('⚠️ llama text-only fallback failed:', err.message);
+          const result = await groq.chat.completions.create({
+            model: fallbackModel,
+            temperature: 0.1,
+            max_tokens: 512,
+            messages: [{
+              role: 'user',
+              content: textOnlyPrompt,
+            }],
+          });
+          responseText = result?.choices?.[0]?.message?.content || null;
+          if (responseText) {
+            console.log(`✅ ${fallbackModel} fallback succeeded`);
+            break;
+          }
+        } catch (err) {
+          console.warn(`⚠️ ${fallbackModel} fallback failed:`, err.message);
+        }
       }
     }
 

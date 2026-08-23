@@ -13,3 +13,8 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+// Ensure email is always included in the OAuth token
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
+// Prompt account selection so switching accounts works correctly
+googleProvider.setCustomParameters({ prompt: 'select_account' });

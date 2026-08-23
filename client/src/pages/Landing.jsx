@@ -5,7 +5,7 @@ import {
   FileText, Clock,
 } from 'lucide-react';
 import { getStats } from '../api/stats';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
 function CivicMark({ size = 32, dark = false }) {
@@ -87,13 +87,11 @@ const FEATURES = [
 
 export default function Landing() {
   const [stats, setStats] = useState(null);
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {});
   }, []);
+
 
   return (
     <div style={{ background: '#F7F5F0', minHeight: '100vh', fontFamily: "'Poppins', sans-serif" }}>
@@ -291,39 +289,32 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="map-container" style={{ height: 420, boxShadow: '0 4px 24px rgba(28,28,30,0.08)' }}>
-          {isLoaded ? (
-            <GoogleMap
-              mapContainerStyle={{ width: '100%', height: '100%' }}
-              center={{ lat: 12.9716, lng: 77.5946 }}
-              zoom={12}
-              options={{ disableDefaultUI: true, zoomControl: true }}
-            >
-              {SAMPLE_MARKERS.map((m, i) => (
-                <Marker
-                  key={i}
-                  position={{ lat: m.lat, lng: m.lng }}
-                  icon={{
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    fillColor: STATUS_COLORS[m.status],
-                    fillOpacity: 1,
-                    strokeColor: '#FAFAF7',
-                    strokeWeight: 2.5,
-                    scale: 10,
-                  }}
-                />
-              ))}
-            </GoogleMap>
-          ) : (
-            <div style={{
-              width: '100%', height: '100%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#E8EDDA', flexDirection: 'column', gap: 10,
-            }}>
-              <MapPin size={32} color="#4A7A44" />
-              <p style={{ color: '#6B6B6B', fontSize: 14 }}>Map requires Google Maps API key</p>
-            </div>
-          )}
+        <div style={{ height: 420, borderRadius: 16, overflow: 'hidden', border: '1px solid #E8E5DE', boxShadow: '0 4px 24px rgba(28,28,30,0.08)', zIndex: 0 }}>
+          <MapContainer
+            center={[12.9716, 77.5946]}
+            zoom={12}
+            style={{ width: '100%', height: 420 }}
+            scrollWheelZoom={false}
+            zoomControl
+            attributionControl={false}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {SAMPLE_MARKERS.map((m, i) => (
+              <CircleMarker
+                key={i}
+                center={[m.lat, m.lng]}
+                radius={10}
+                pathOptions={{
+                  color: '#fff',
+                  weight: 2.5,
+                  fillColor: STATUS_COLORS[m.status],
+                  fillOpacity: 1,
+                }}
+              />
+            ))}
+          </MapContainer>
         </div>
 
         {/* Map Legend */}

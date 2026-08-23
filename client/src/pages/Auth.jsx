@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-} from 'firebase/auth';
-import { auth, googleProvider } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -49,7 +43,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { user, profile } = useAuth();
+  const { user, profile, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -65,11 +59,11 @@ export default function Auth() {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
-        toast.success('Account created successfully!');
+        await signUpWithEmail(email, password);
+        // Welcome toast is shown by AuthContext after profile resolves
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast.success('Welcome back!');
+        await signInWithEmail(email, password);
+        // Welcome toast is shown by AuthContext after profile resolves
       }
     } catch (err) {
       toast.error(err.message || 'Authentication failed');
@@ -81,10 +75,15 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Signed in with Google!');
+      await signInWithGoogle();
+      // Toast is intentionally omitted here — navigation happens via the
+      // useEffect watching `user`, which fires after onAuthStateChanged resolves.
     } catch (err) {
-      toast.error(err.message || 'Google sign-in failed');
+      // Ignore expected user-cancellation errors
+      const ignoredCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
+      if (!ignoredCodes.includes(err.code)) {
+        toast.error(err.message || 'Google sign-in failed');
+      }
     } finally {
       setGoogleLoading(false);
     }

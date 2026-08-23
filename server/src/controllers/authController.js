@@ -16,7 +16,9 @@ const login = async (req, res) => {
   if (official && user.role !== 'official') {
     user.role = 'official';
     user.department = official.department;
-    await user.save();
+    if (typeof user.save === 'function') {
+      await user.save();
+    }
   }
 
   res.json({

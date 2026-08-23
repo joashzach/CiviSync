@@ -19,8 +19,11 @@ const authenticate = async (req, res, next) => {
   try {
     decodedToken = await getAuth(app).verifyIdToken(token);
   } catch (error) {
-    // If Firebase Admin verification is unconfigured in local dev, allow request with mock decoded payload
-    console.warn('Firebase token verification notice:', error.message);
+    console.warn('Firebase token verification failed:', error.message);
+    // Only allow mock fallback in development to prevent silent auth bypass in production
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
     decodedToken = { uid: 'dev-user-uid', email: 'citizen@civisync.demo' };
   }
 
@@ -43,10 +46,13 @@ const authenticate = async (req, res, next) => {
       });
     } else if (official) {
       // Sync official role & department if updated
-      if (user.role !== 'official' || user.department !== official.department) {
+      const changed = user.role !== 'official' || user.department !== official.department;
+      if (changed) {
         user.role = 'official';
         user.department = official.department;
-        await user.save();
+        if (typeof user.save === 'function') {
+          await user.save();
+        }
       }
     }
 
@@ -81,7 +87,11 @@ const optionalAuthenticate = async (req, res, next) => {
   try {
     decodedToken = await getAuth(app).verifyIdToken(token);
   } catch (error) {
-    console.warn('Firebase token verification notice:', error.message);
+    console.warn('Firebase token verification failed:', error.message);
+    if (process.env.NODE_ENV === 'production') {
+      // In production, skip auth rather than fall back to mock
+      return next();
+    }
     decodedToken = { uid: 'dev-user-uid', email: 'citizen@civisync.demo' };
   }
 
@@ -103,9 +113,10 @@ const optionalAuthenticate = async (req, res, next) => {
         department: official ? official.department : null,
       });
     } else if (official) {
+      const changed = user.role !== 'official' || user.department !== official.department;
       user.role = 'official';
       user.department = official.department;
-      if (user.isModified('role') || user.isModified('department')) {
+      if (changed && typeof user.save === 'function') {
         await user.save();
       }
     }

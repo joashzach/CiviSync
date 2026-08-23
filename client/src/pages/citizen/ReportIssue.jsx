@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   MapPin, Sparkles, CheckCircle2, LocateFixed,
 } from 'lucide-react';
-import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import ImageUpload from '../../components/ImageUpload';
 import DuplicateModal from '../../components/DuplicateModal';
 import { analyzeImage } from '../../api/ai';
 import { createComplaint, checkDuplicates } from '../../api/complaints';
-import { getMarkerColor } from '../../lib/utils';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUserLocation } from '../../lib/location';
@@ -28,27 +28,80 @@ const DEFAULT_FORM = {
   title: '', description: '', category: '', department: '', severity: '',
 };
 
+/** Custom pin icon for location marker */
+const pinIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+    width:22px;height:22px;border-radius:50%;
+    background:#011410;border:3px solid #FAFAF7;
+    box-shadow:0 2px 10px rgba(0,0,0,0.35);
+  "></div>`,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
+
+/** Click anywhere on the map to reposition the marker */
+function ClickHandler({ onMapClick }) {
+  useMapEvents({
+    click(e) {
+      onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
+
+/** Fly to new location when detected after mount */
+function FlyTo({ position }) {
+  const map = useMap();
+  const lastPos = useRef(null);
+  useEffect(() => {
+    if (!position) return;
+    const key = `${position.lat},${position.lng}`;
+    if (key !== lastPos.current) {
+      lastPos.current = key;
+      map.flyTo([position.lat, position.lng], 15, { animate: true, duration: 1 });
+    }
+  }, [position, map]);
+  return null;
+}
+
+/** Draggable location marker */
+function LocationMarker({ position, onChange }) {
+  const markerRef = useRef(null);
+  if (!position) return null;
+  return (
+    <Marker
+      ref={markerRef}
+      position={[position.lat, position.lng]}
+      icon={pinIcon}
+      draggable
+      eventHandlers={{
+        dragend() {
+          const m = markerRef.current;
+          if (m) {
+            const { lat, lng } = m.getLatLng();
+            onChange({ lat, lng });
+          }
+        },
+      }}
+    />
+  );
+}
+
 export default function ReportIssue() {
   const navigate = useNavigate();
-  const [imageUrl, setImageUrl] = useState('');
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiDone, setAiDone] = useState(false);
-  const [form, setForm] = useState(DEFAULT_FORM);
-  const [location, setLocation] = useState(null);
-  const [locating, setLocating] = useState(false);
+  const [imageUrl, setImageUrl]     = useState('');
+  const [analyzing, setAnalyzing]   = useState(false);
+  const [aiDone, setAiDone]         = useState(false);
+  const [form, setForm]             = useState(DEFAULT_FORM);
+  const [location, setLocation]     = useState(null);
+  const [locating, setLocating]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [duplicate, setDuplicate] = useState(null);
+  const [duplicate, setDuplicate]   = useState(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
-
   useEffect(() => { detectLocation(); }, []);
-
-  useEffect(() => {
-    if (imageUrl) { runAIAnalysis(imageUrl); }
-  }, [imageUrl]);
+  useEffect(() => { if (imageUrl) runAIAnalysis(imageUrl); }, [imageUrl]);
 
   const detectLocation = async () => {
     setLocating(true);
@@ -103,15 +156,15 @@ export default function ReportIssue() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!imageUrl) { toast.error('Please upload an image'); return; }
-    if (!location) { toast.error('Location not detected'); return; }
+    if (!imageUrl)  { toast.error('Please upload an image'); return; }
+    if (!location)  { toast.error('Location not detected'); return; }
     if (!form.title || !form.category || !form.department || !form.severity) {
       toast.error('Please fill in all required fields'); return;
     }
     setSubmitting(true);
     try {
       const duplicates = await checkDuplicates(form.category, location.lat, location.lng);
-      if (duplicates && duplicates.length > 0) {
+      if (duplicates?.length > 0) {
         setDuplicate(duplicates[0]);
         setShowDuplicateModal(true);
         setSubmitting(false);
@@ -121,32 +174,9 @@ export default function ReportIssue() {
     await submitComplaint();
   };
 
-  const handleReportAnyway = () => {
-    setShowDuplicateModal(false);
-    setDuplicate(null);
-    submitComplaint();
-  };
-
-  const handleDuplicateSupported = () => {
-    setShowDuplicateModal(false);
-    setDuplicate(null);
-    toast.success('Thank you for supporting the existing complaint!');
-    navigate('/citizen');
-  };
-
+  const handleReportAnyway    = () => { setShowDuplicateModal(false); setDuplicate(null); submitComplaint(); };
+  const handleDuplicateSupported = () => { setShowDuplicateModal(false); setDuplicate(null); toast.success('Thank you for supporting the existing complaint!'); navigate('/citizen'); };
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const handleMapClick = (e) => {
-    if (e && e.latLng) {
-      setLocation({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-    }
-  };
-
-  const handleMarkerDragEnd = (e) => {
-    if (e && e.latLng) {
-      setLocation({ lat: e.latLng.lat(), lng: e.latLng.lng() });
-    }
-  };
 
   return (
     <div className="animate-fade-in">
@@ -184,29 +214,18 @@ export default function ReportIssue() {
                         animation: 'spin 0.7s linear infinite', flexShrink: 0,
                       }} />
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>
-                          Analysing with AI...
-                        </p>
-                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>
-                          Detecting category, department & severity
-                        </p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>Analysing with AI...</p>
+                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Detecting category, department &amp; severity</p>
                       </div>
                     </>
                   ) : aiDone ? (
                     <>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 8, background: '#DFF0D8',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#DFF0D8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <CheckCircle2 size={17} color="#011410" />
                       </div>
                       <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#011410' }}>
-                          AI Analysis Complete
-                        </p>
-                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>
-                          Form auto-filled. Review before submitting.
-                        </p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#011410' }}>AI Analysis Complete</p>
+                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Form auto-filled. Review before submitting.</p>
                       </div>
                     </>
                   ) : null}
@@ -214,13 +233,13 @@ export default function ReportIssue() {
               </div>
             )}
 
-            {/* Map Preview */}
+            {/* Map — Location Picker */}
             <div className="card" style={{ padding: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#1C1C1E' }}>Issue Location</h3>
                   <p style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 2 }}>
-                    Default is your current location. Click map to change.
+                    Default is your current location. Click map or drag pin to change.
                   </p>
                 </div>
                 <button
@@ -234,29 +253,22 @@ export default function ReportIssue() {
                 </button>
               </div>
 
-              <div className="map-container" style={{ height: 210, borderRadius: 10, overflow: 'hidden' }}>
-                {isLoaded && location ? (
-                  <GoogleMap
-                    mapContainerStyle={{ width: '100%', height: '100%' }}
-                    center={location}
+              <div style={{ height: 210, borderRadius: 10, overflow: 'hidden', border: '1px solid #E8E5DE', zIndex: 0 }}>
+                {location ? (
+                  <MapContainer
+                    center={[location.lat, location.lng]}
                     zoom={15}
-                    onClick={handleMapClick}
-                    options={{ disableDefaultUI: true, zoomControl: true }}
+                    style={{ width: '100%', height: 210 }}
+                    scrollWheelZoom
+                    attributionControl={false}
                   >
-                    <MarkerF
-                      position={location}
-                      draggable={true}
-                      onDragEnd={handleMarkerDragEnd}
-                      icon={{
-                        path: window.google.maps.SymbolPath.CIRCLE,
-                        fillColor: '#011410',
-                        fillOpacity: 1,
-                        strokeColor: '#FAFAF7',
-                        strokeWeight: 3,
-                        scale: 10,
-                      }}
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                  </GoogleMap>
+                    <FlyTo position={location} />
+                    <ClickHandler onMapClick={setLocation} />
+                    <LocationMarker position={location} onChange={setLocation} />
+                  </MapContainer>
                 ) : (
                   <div style={{
                     height: '100%', background: '#DFF0D8',

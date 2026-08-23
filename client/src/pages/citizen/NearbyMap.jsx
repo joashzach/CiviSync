@@ -1,49 +1,43 @@
 import { useState, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { MapPin, ThumbsUp } from 'lucide-react';
 import { getAllForMap } from '../../api/complaints';
-import { getMarkerColor, truncate, getStatusBadgeClass } from '../../lib/utils';
+import { getMarkerColor, truncate } from '../../lib/utils';
 import ComplaintDrawer from '../../components/ComplaintDrawer';
 import { getCurrentUserLocation } from '../../lib/location';
 
-const BENGALURU = { lat: 12.9716, lng: 77.5946 };
+const BENGALURU = [12.9716, 77.5946];
 
 const STATUS_LEGEND = [
-  { status: 'Pending',     color: '#D97706' },
-  { status: 'Assigned',   color: '#2563EB' },
+  { status: 'Pending',      color: '#D97706' },
+  { status: 'Assigned',    color: '#2563EB' },
   { status: 'In Progress', color: '#7C3AED' },
-  { status: 'Resolved',   color: '#16A34A' },
+  { status: 'Resolved',    color: '#16A34A' },
 ];
+
+/** Smoothly pans the map when user location is resolved */
+function FlyTo({ position }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) map.flyTo(position, map.getZoom(), { animate: true, duration: 1.2 });
+  }, [position, map]);
+  return null;
+}
 
 export default function NearbyMap() {
   const [complaints, setComplaints] = useState([]);
-  const [center, setCenter] = useState(BENGALURU);
-  const [selected, setSelected] = useState(null);
-  const [hoverId, setHoverId] = useState(null);
+  const [center, setCenter]         = useState(BENGALURU);
   const [drawerOpen, setDrawerOpen] = useState(null);
-
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
 
   useEffect(() => {
     getAllForMap().then(setComplaints).catch(() => {});
-    getCurrentUserLocation().then(setCenter);
+    getCurrentUserLocation()
+      .then(loc => { if (loc?.lat && loc?.lng) setCenter([loc.lat, loc.lng]); })
+      .catch(() => {});
   }, []);
 
-  if (!isLoaded) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#DFF0D8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <MapPin size={22} color="#011410" />
-        </div>
-        <p style={{ color: '#6B6B6B', fontSize: 14, fontWeight: 500 }}>Loading map...</p>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }} className="animate-fade-in">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }} className="animate-fade-in">
       <div className="page-header" style={{ marginBottom: 14 }}>
         <h1 className="page-title">Nearby Map</h1>
         <p className="page-subtitle">
@@ -62,71 +56,65 @@ export default function NearbyMap() {
       </div>
 
       {/* Map */}
-      <div className="map-container" style={{ flex: 1 }}>
-        <GoogleMap
-          mapContainerStyle={{ width: '100%', height: '100%' }}
+      <div style={{ height: 520, borderRadius: 14, overflow: 'hidden', border: '1px solid #E8E5DE', position: 'relative', zIndex: 0 }}>
+        <MapContainer
           center={center}
           zoom={12}
-          options={{ disableDefaultUI: false, zoomControl: true, streetViewControl: false }}
+          style={{ width: '100%', height: 520 }}
+          scrollWheelZoom
+          attributionControl={false}
         >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <FlyTo position={center} />
+
           {complaints.map((c) => (
-            <MarkerF
+            <CircleMarker
               key={c._id}
-              position={{ lat: c.latitude, lng: c.longitude }}
-              onClick={() => setSelected(c)}
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
+              center={[c.latitude, c.longitude]}
+              radius={9}
+              pathOptions={{
+                color: '#fff',
+                weight: 2.5,
                 fillColor: getMarkerColor(c.status),
                 fillOpacity: 1,
-                strokeColor: '#FAFAF7',
-                strokeWeight: 2.5,
-                scale: hoverId === c._id ? 13 : 9,
               }}
-              onMouseOver={() => setHoverId(c._id)}
-              onMouseOut={() => setHoverId(null)}
-            />
-          ))}
-
-          {selected && (
-            <InfoWindowF
-              position={{ lat: selected.latitude, lng: selected.longitude }}
-              onCloseClick={() => setSelected(null)}
             >
-              <div style={{ maxWidth: 220, fontFamily: "'Poppins', sans-serif", padding: '2px 0' }}>
-                <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 7, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
-                  {truncate(selected.title, 50)}
-                </p>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                  <span style={{
-                    fontSize: 11, padding: '2px 8px', borderRadius: 100,
-                    background: '#DFF0D8', color: '#011410', fontWeight: 600,
-                    border: '1px solid rgba(26,58,10,0.2)',
-                  }}>
-                    {selected.status}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#6B6B6B', alignSelf: 'center' }}>{selected.category}</span>
+              <Popup>
+                <div style={{ fontFamily: "'Poppins', sans-serif", minWidth: 190 }}>
+                  <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
+                    {truncate(c.title, 50)}
+                  </p>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 100,
+                      background: '#DFF0D8', color: '#011410', fontWeight: 600,
+                      border: '1px solid rgba(26,58,10,0.2)',
+                    }}>
+                      {c.status}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#6B6B6B', alignSelf: 'center' }}>{c.category}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#6B6B6B', marginBottom: 10 }}>
+                    <ThumbsUp size={11} /> {c.support_count} supporters
+                  </div>
+                  <button
+                    onClick={() => setDrawerOpen(c._id)}
+                    style={{
+                      background: '#011410', color: '#fff', border: 'none',
+                      borderRadius: 7, padding: '7px 12px', fontSize: 12,
+                      fontWeight: 600, cursor: 'pointer', width: '100%',
+                      fontFamily: "'Poppins', sans-serif",
+                    }}
+                  >
+                    View Details
+                  </button>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#6B6B6B', marginBottom: 10 }}>
-                  <ThumbsUp size={11} /> {selected.support_count} supporters
-                </div>
-                <button
-                  onClick={() => { setDrawerOpen(selected._id); setSelected(null); }}
-                  style={{
-                    background: '#011410', color: '#fff', border: 'none',
-                    borderRadius: 7, padding: '7px 12px', fontSize: 12,
-                    fontWeight: 600, cursor: 'pointer', width: '100%',
-                    fontFamily: "'Poppins', sans-serif",
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#000806'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#011410'; }}
-                >
-                  View Details
-                </button>
-              </div>
-            </InfoWindowF>
-          )}
-        </GoogleMap>
+              </Popup>
+            </CircleMarker>
+          ))}
+        </MapContainer>
       </div>
 
       {drawerOpen && (
