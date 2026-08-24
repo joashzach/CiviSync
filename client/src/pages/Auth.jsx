@@ -271,18 +271,16 @@ export default function Auth() {
     }
   };
 
-  // ── Google sign-in (Mobile redirect + Desktop popup fallback) ─────────────
+  // ── Google sign-in (Unified flow for mobile & desktop) ────────────────────
   const handleGoogleSignIn = async () => {
     if (isLocked || isAnyLoading) return;
     setGoogleLoading(true);
 
     try {
       const result = await signInWithGoogle(rememberMe, mode);
-      // On mobile, signInWithGoogle calls signInWithRedirect which navigates away
-      // immediately — the page unloads, so nothing after this runs. On desktop
-      // with popup, result is returned and onAuthStateChanged handles routing.
-      // If result is undefined (redirect initiated), keep loading state visible.
-      if (!result) return; // page is navigating away
+      // If result is undefined (e.g. popup was blocked and fell back to redirect navigation),
+      // the page will navigate away so keep the loading state active.
+      if (!result) return;
     } catch (err) {
       const msg = getFirebaseErrorMessage(err);
       if (msg) {

@@ -221,12 +221,8 @@ export function AuthProvider({ children }) {
     await safeSetPersistence(rememberMe);
     try { sessionStorage.setItem('civisync_auth_redirect_mode', expectedMode || 'login'); } catch (_) {}
 
-    // Mobile always uses redirect — popups are blocked/killed by mobile browsers
-    if (isMobileDevice()) {
-      return signInWithRedirect(auth, googleProvider);
-    }
-
-    // Desktop: popup with automatic redirect fallback
+    // Both desktop and mobile follow the exact same flow: try popup first,
+    // and automatically fall back to redirect if popups are blocked/unsupported.
     try {
       const result = await signInWithPopup(auth, googleProvider);
 
@@ -248,12 +244,10 @@ export function AuthProvider({ children }) {
       const fallbackCodes = [
         'auth/popup-blocked',
         'auth/operation-not-supported-in-this-environment',
-        'auth/popup-closed-by-user',
-        'auth/cancelled-popup-request',
-        'auth/internal-error',
+        'auth/web-storage-unsupported',
       ];
-      if (fallbackCodes.includes(err.code) || err.message?.toLowerCase().includes('popup')) {
-        console.info('[Auth] Popup blocked, falling back to redirect:', err.code);
+      if (fallbackCodes.includes(err?.code) || err?.message?.toLowerCase().includes('popup blocked')) {
+        console.info('[Auth] Popup blocked/unsupported, falling back to redirect:', err?.code);
         return signInWithRedirect(auth, googleProvider);
       }
       throw err;
@@ -269,13 +263,20 @@ export function AuthProvider({ children }) {
   // ── Email sign-up ─────────────────────────────────────────────────────────
   const signUpWithEmail = async (email, password, name) => {
     await safeSetPersistence(true);
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    if (name && result?.user) {
+    if (name) {
       pendingNameRef.current = name;
-      try { await updateProfile(result.user, { displayName: name }); }
-      catch (err) { console.warn('[Auth] updateProfile failed:', err.message); }
     }
-    return result;
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      if (name && result?.user) {
+        try { await updateProfile(result.user, { displayName: name }); }
+        catch (err) { console.warn('[Auth] updateProfile failed:', err.message); }
+      }
+      return result;
+    } catch (err) {
+      pendingNameRef.current = null;
+      throw err;
+    }
   };
 
   // ── Sign out ──────────────────────────────────────────────────────────────
