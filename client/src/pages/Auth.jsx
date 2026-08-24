@@ -155,13 +155,16 @@ export default function Auth() {
     }
   }, [redirectError, setRedirectError]);
 
-  // ── Redirect on complete authentication & profile resolution ──────────────
+  // ── Redirect as soon as user + profile are both resolved ──────────────────
+  // We do NOT gate on !authLoading because in the redirect flow loading may
+  // already be false before this effect re-runs. Trigger on any change to user
+  // or profile — the condition is the only gate we need.
   useEffect(() => {
-    if (user && profile && !authLoading) {
+    if (user && profile) {
       const target = profile.role === 'official' ? '/official' : '/citizen';
       navigate(target, { replace: true });
     }
-  }, [user, profile, authLoading, navigate]);
+  }, [user, profile, navigate]);
 
   // ── Lockout countdown timer ───────────────────────────────────────────────
   useEffect(() => {
@@ -182,8 +185,8 @@ export default function Auth() {
     return () => clearInterval(lockTimerRef.current);
   }, [lockedUntil]);
 
-  const isLocked    = !!lockedUntil && Date.now() < lockedUntil;
-  const isAnyLoading = loading || googleLoading || (authLoading && !!user);
+  const isLocked     = !!lockedUntil && Date.now() < lockedUntil;
+  const isAnyLoading = loading || googleLoading;
 
   // ── Mode switch ───────────────────────────────────────────────────────────
   const switchMode = (m) => {
@@ -274,7 +277,12 @@ export default function Auth() {
     setGoogleLoading(true);
 
     try {
-      await signInWithGoogle(rememberMe, mode);
+      const result = await signInWithGoogle(rememberMe, mode);
+      // On mobile, signInWithGoogle calls signInWithRedirect which navigates away
+      // immediately — the page unloads, so nothing after this runs. On desktop
+      // with popup, result is returned and onAuthStateChanged handles routing.
+      // If result is undefined (redirect initiated), keep loading state visible.
+      if (!result) return; // page is navigating away
     } catch (err) {
       const msg = getFirebaseErrorMessage(err);
       if (msg) {
@@ -288,22 +296,25 @@ export default function Auth() {
     }
   };
 
-  if (user && !profile) {
+  // Full-page splash: shown while Firebase is initialising OR
+  // while we have a user but are waiting for backend profile (e.g. after redirect).
+  // Once profile arrives the useEffect above navigates away instantly.
+  if (authLoading || (user && !profile)) {
     return (
       <div style={{
-        height: '100vh',
+        height: '100dvh',
         width: '100vw',
         background: '#F7F5F0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
+        gap: 14,
         fontFamily: "'Poppins', sans-serif",
       }}>
-        <Spinner size={32} />
+        <Spinner size={36} />
         <span style={{ fontSize: 13, color: '#6B6B6B', fontWeight: 500 }}>
-          Authenticating profile…
+          {user ? 'Loading your profile…' : 'Checking authentication…'}
         </span>
       </div>
     );

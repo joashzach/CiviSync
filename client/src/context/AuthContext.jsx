@@ -21,7 +21,7 @@ import { loginUser } from '../api/complaints';
 
 const AuthContext = createContext(null);
 
-// ── Mobile Device Detector ───────────────────────────────────────────────────
+// ── Mobile Device Detector ──────────────────────────────────────────────────
 export function isMobileDevice() {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || navigator.vendor || window.opera || '';
@@ -31,9 +31,7 @@ export function isMobileDevice() {
   return isMobileUA || (isTouchDevice && isSmallScreen);
 }
 
-// ── Friendly Firebase error message mapper ────────────────────────────────────
-// Maps Firebase error codes to human-readable messages.
-// A value of `null` means the error should be silently ignored (user-initiated).
+// ── Firebase error mapper ───────────────────────────────────────────────────
 const FIREBASE_ERROR_MAP = {
   'auth/email-already-in-use':        'An account with this email already exists. Try signing in instead.',
   'auth/account-already-registered':  'This account is already registered. Please sign in instead.',
@@ -43,11 +41,11 @@ const FIREBASE_ERROR_MAP = {
   'auth/wrong-password':              'Incorrect password. Please try again.',
   'auth/invalid-credential':          'Invalid email or password. Please check and try again.',
   'auth/weak-password':               'Password must be at least 8 characters long.',
-  'auth/too-many-requests':           'Too many failed attempts. Your account is temporarily locked. Please try again later or reset your password.',
+  'auth/too-many-requests':           'Too many failed attempts. Please try again later or reset your password.',
   'auth/network-request-failed':      'Network error. Please check your connection and try again.',
-  'auth/popup-blocked':               null, // Handled internally — fallback to redirect
-  'auth/popup-closed-by-user':        null, // User dismissed — silent
-  'auth/cancelled-popup-request':     null, // Race condition cancel — silent
+  'auth/popup-blocked':               null,
+  'auth/popup-closed-by-user':        null,
+  'auth/cancelled-popup-request':     null,
   'auth/user-disabled':               'This account has been disabled. Please contact support.',
   'auth/operation-not-allowed':       'This sign-in method is not currently enabled.',
   'auth/requires-recent-login':       'For security, please sign in again to continue.',
@@ -57,35 +55,35 @@ const FIREBASE_ERROR_MAP = {
 export function getFirebaseErrorMessage(err) {
   if (!err?.code) return err?.message || 'Authentication failed. Please try again.';
   const mapped = FIREBASE_ERROR_MAP[err.code];
-  if (mapped === null) return null; // Intentionally silent
+  if (mapped === null) return null;
   return mapped ?? 'Authentication failed. Please try again.';
 }
 
-// ── AuthProvider ──────────────────────────────────────────────────────────────
+// ── AuthProvider ─────────────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
   const [user, setUser]                   = useState(null);
   const [profile, setProfile]             = useState(null);
   const [loading, setLoading]             = useState(true);
   const [redirectError, setRedirectError] = useState(null);
 
-  // Stores the display name captured during signUpWithEmail so the
-  // onAuthStateChanged listener can use it before the Firebase profile syncs.
+  // Name captured during signUpWithEmail before onAuthStateChanged fires
   const pendingNameRef = useRef(null);
-
-  // Prevents concurrent or duplicate backend profile fetches.
+  // Guard: prevents two concurrent fetchProfile calls
   const fetchingRef = useRef(false);
+  // Flag: redirect result already resolved user — onAuthStateChanged should skip re-fetch
+  const redirectHandledRef = useRef(false);
 
-  // Safe persistence configuration (resilient to Safari Private Browsing / restricted WebViews)
-  const safeSetPersistence = async (rememberMe = true) => {
+  // ── Safe persistence ──────────────────────────────────────────────────────
+  const safeSetPersistence = useCallback(async (rememberMe = true) => {
     try {
-      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-      await setPersistence(auth, persistenceType);
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     } catch (err) {
-      console.warn('[Auth] Persistence not supported in this environment, using default:', err.message);
+      console.warn('[Auth] setPersistence unsupported:', err.message);
     }
-  };
+  }, []);
 
-  // ── Fetch backend profile for an authenticated Firebase user ─────────────
+  // ── fetchProfile ──────────────────────────────────────────────────────────
+  // Fetches (or creates) backend profile for a Firebase user. Never throws.
   const fetchProfile = useCallback(async (firebaseUser) => {
     if (!firebaseUser) {
       setUser(null);
@@ -94,96 +92,115 @@ export function AuthProvider({ children }) {
       return null;
     }
 
-    if (fetchingRef.current) return null; // Already in-flight
+    // If already in-flight, wait for completion rather than duplicating work
+    if (fetchingRef.current) {
+      return new Promise((resolve) => {
+        const poll = setInterval(() => {
+          if (!fetchingRef.current) { clearInterval(poll); resolve(null); }
+        }, 50);
+      });
+    }
     fetchingRef.current = true;
-
     setUser(firebaseUser);
 
-    // Prefer a pending name (from signUpWithEmail) over the Firebase display name.
     const name      = pendingNameRef.current || firebaseUser.displayName || null;
     const avatarUrl = firebaseUser.photoURL || null;
 
     try {
-      // Force-refresh the token so the backend always receives a non-expired JWT.
-      await firebaseUser.getIdToken(/* forceRefresh= */ true);
+      await firebaseUser.getIdToken(true);
       const data = await loginUser({ name, avatar_url: avatarUrl });
-      const fullProfile = {
+      const resolved = {
         ...data,
         name:       data?.name       || name      || null,
         avatar_url: data?.avatar_url || avatarUrl || null,
       };
-      setProfile(fullProfile);
-      return fullProfile;
+      setProfile(resolved);
+      return resolved;
     } catch (err) {
-      // Backend is unreachable — use a minimal in-memory profile.
-      // The app still works; the role defaults to 'citizen'.
-      console.warn('[Auth] Backend profile fetch failed, using fallback:', err.message);
-      const fallbackProfile = {
+      console.warn('[Auth] Profile fetch failed, using fallback:', err.message);
+      const fallback = {
         email:      firebaseUser.email,
         name:       name      || null,
         avatar_url: avatarUrl || null,
         role:       'citizen',
         department: null,
       };
-      setProfile(fallbackProfile);
-      return fallbackProfile;
+      setProfile(fallback);
+      return fallback;
     } finally {
       pendingNameRef.current = null;
       fetchingRef.current    = false;
     }
   }, []);
 
-  // ── Single source of truth: onAuthStateChanged & getRedirectResult ───────
+  // ── Auth initialisation ───────────────────────────────────────────────────
+  // Order of operations:
+  //   1. getRedirectResult — catches returning OAuth redirect (mobile / popup fallback)
+  //   2. onAuthStateChanged — handles all other session changes
+  //
+  // KEY: if redirect result handles the user first, onAuthStateChanged is told to
+  // skip re-fetching via redirectHandledRef to avoid the race condition where
+  // profile ends up null because fetchingRef was locked by the redirect fetch.
   useEffect(() => {
     let isMounted = true;
+    let unsubAuth = null;
 
-    const initAuth = async () => {
-      // 1. Process redirect result for mobile devices or redirect OAuth flows
+    async function init() {
+      // ── 1. Redirect result ──────────────────────────────────────────────
       try {
         const redirectResult = await getRedirectResult(auth);
+
         if (redirectResult?.user && isMounted) {
-          let savedMode = null;
+          let savedMode = 'login';
           try {
-            savedMode = sessionStorage.getItem('civisync_auth_redirect_mode');
+            savedMode = sessionStorage.getItem('civisync_auth_redirect_mode') || 'login';
             sessionStorage.removeItem('civisync_auth_redirect_mode');
           } catch (_) {}
 
+          // Enforce signup-only restriction for new users
           if (savedMode === 'signup') {
-            const additionalInfo = getAdditionalUserInfo(redirectResult);
-            const isNewUser = additionalInfo?.isNewUser ?? false;
-
-            if (!isNewUser) {
+            const info = getAdditionalUserInfo(redirectResult);
+            if (!(info?.isNewUser ?? false)) {
               await firebaseSignOut(auth);
               if (isMounted) {
                 setUser(null);
                 setProfile(null);
-                const err = new Error('This account is already registered. Please sign in instead.');
-                err.code = 'auth/account-already-registered';
-                setRedirectError(err);
+                const e = new Error('This account is already registered. Please sign in instead.');
+                e.code = 'auth/account-already-registered';
+                setRedirectError(e);
+                setLoading(false);
               }
+              unsubAuth = onAuthStateChanged(auth, () => { if (isMounted) setLoading(false); });
               return;
             }
           }
 
-          if (isMounted) {
-            await fetchProfile(redirectResult.user);
-          }
+          // Profile fetched by redirect result — mark so onAuthStateChanged skips
+          redirectHandledRef.current = true;
+          await fetchProfile(redirectResult.user);
+          if (isMounted) setLoading(false);
         }
       } catch (err) {
         const silent = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
-        if (!silent.includes(err.code)) {
-          console.warn('[Auth] Redirect result processing:', err);
-          if (isMounted) setRedirectError(err);
+        if (!silent.includes(err?.code)) {
+          console.warn('[Auth] getRedirectResult error:', err?.code, err?.message);
         }
       }
 
-      // 2. onAuthStateChanged is authoritative for user session state
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // ── 2. Ongoing session observer ─────────────────────────────────────
+      unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
         if (!isMounted) return;
         try {
           if (firebaseUser) {
+            if (redirectHandledRef.current) {
+              // Redirect path already set user + profile; just clear the flag & loading
+              redirectHandledRef.current = false;
+              if (isMounted) setLoading(false);
+              return;
+            }
             await fetchProfile(firebaseUser);
           } else {
+            redirectHandledRef.current = false;
             setUser(null);
             setProfile(null);
           }
@@ -193,39 +210,41 @@ export function AuthProvider({ children }) {
           if (isMounted) setLoading(false);
         }
       });
+    }
 
-      return unsubscribe;
-    };
-
-    const unsubPromise = initAuth();
-
-    return () => {
-      isMounted = false;
-      unsubPromise.then((unsub) => {
-        if (typeof unsub === 'function') unsub();
-      });
-    };
+    init();
+    return () => { isMounted = false; if (unsubAuth) unsubAuth(); };
   }, [fetchProfile]);
 
-  // ── Google OAuth (Mobile-optimized with automatic Redirect / Popup) ────────
+  // ── Google OAuth ──────────────────────────────────────────────────────────
   const signInWithGoogle = async (rememberMe = true, expectedMode = null) => {
     await safeSetPersistence(rememberMe);
+    try { sessionStorage.setItem('civisync_auth_redirect_mode', expectedMode || 'login'); } catch (_) {}
 
-    try {
-      sessionStorage.setItem('civisync_auth_redirect_mode', expectedMode || 'login');
-    } catch (_) {}
-
-    // On mobile devices (iOS Safari, Android Chrome, WebViews), always use redirect
-    // to bypass popup blockers, cross-origin iframe security, and tab death.
+    // Mobile always uses redirect — popups are blocked/killed by mobile browsers
     if (isMobileDevice()) {
       return signInWithRedirect(auth, googleProvider);
     }
 
-    let result;
+    // Desktop: popup with automatic redirect fallback
     try {
-      result = await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+
+      if (result && expectedMode === 'signup') {
+        const info = getAdditionalUserInfo(result);
+        if (!(info?.isNewUser ?? false)) {
+          await firebaseSignOut(auth);
+          setUser(null);
+          setProfile(null);
+          const e = new Error('This account is already registered. Please sign in instead.');
+          e.code = 'auth/account-already-registered';
+          throw e;
+        }
+      }
+
+      try { sessionStorage.removeItem('civisync_auth_redirect_mode'); } catch (_) {}
+      return result;
     } catch (err) {
-      // If popup was blocked or failed, seamlessly fallback to redirect
       const fallbackCodes = [
         'auth/popup-blocked',
         'auth/operation-not-supported-in-this-environment',
@@ -233,32 +252,12 @@ export function AuthProvider({ children }) {
         'auth/cancelled-popup-request',
         'auth/internal-error',
       ];
-      if (fallbackCodes.includes(err.code) || err.message?.includes('popup')) {
-        console.info('[Auth] Popup failed, falling back to redirect:', err.code || err.message);
+      if (fallbackCodes.includes(err.code) || err.message?.toLowerCase().includes('popup')) {
+        console.info('[Auth] Popup blocked, falling back to redirect:', err.code);
         return signInWithRedirect(auth, googleProvider);
       }
       throw err;
     }
-
-    if (result && expectedMode === 'signup') {
-      const additionalInfo = getAdditionalUserInfo(result);
-      const isNewUser = additionalInfo?.isNewUser ?? false;
-
-      if (!isNewUser) {
-        await firebaseSignOut(auth);
-        setUser(null);
-        setProfile(null);
-        const err = new Error('This account is already registered. Please sign in instead.');
-        err.code = 'auth/account-already-registered';
-        throw err;
-      }
-    }
-
-    try {
-      sessionStorage.removeItem('civisync_auth_redirect_mode');
-    } catch (_) {}
-
-    return result;
   };
 
   // ── Email sign-in ─────────────────────────────────────────────────────────
@@ -270,47 +269,38 @@ export function AuthProvider({ children }) {
   // ── Email sign-up ─────────────────────────────────────────────────────────
   const signUpWithEmail = async (email, password, name) => {
     await safeSetPersistence(true);
-
     const result = await createUserWithEmailAndPassword(auth, email, password);
-
     if (name && result?.user) {
       pendingNameRef.current = name;
-      try {
-        await updateProfile(result.user, { displayName: name });
-      } catch (err) {
-        console.warn('[Auth] Failed to set displayName:', err.message);
-      }
+      try { await updateProfile(result.user, { displayName: name }); }
+      catch (err) { console.warn('[Auth] updateProfile failed:', err.message); }
     }
-
     return result;
   };
 
   // ── Sign out ──────────────────────────────────────────────────────────────
   const signOut = async () => {
-    pendingNameRef.current = null;
-    fetchingRef.current    = false;
-    try {
-      sessionStorage.removeItem('civisync_auth_redirect_mode');
-    } catch (_) {}
+    pendingNameRef.current     = null;
+    fetchingRef.current        = false;
+    redirectHandledRef.current = false;
+    try { sessionStorage.removeItem('civisync_auth_redirect_mode'); } catch (_) {}
     await firebaseSignOut(auth);
     setUser(null);
     setProfile(null);
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        loading,
-        redirectError,
-        setRedirectError,
-        signOut,
-        signInWithGoogle,
-        signInWithEmail,
-        signUpWithEmail,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      loading,
+      redirectError,
+      setRedirectError,
+      signOut,
+      signInWithGoogle,
+      signInWithEmail,
+      signUpWithEmail,
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -321,4 +311,3 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
 };
-
