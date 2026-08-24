@@ -140,8 +140,17 @@ export default function Auth() {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    fetchProfile,
   } = useAuth();
   const navigate = useNavigate();
+
+  // ── Explicit navigation helper ──────────────────────────────────────────
+  // Used after auth handlers resolve profile — more reliable on mobile than
+  // relying solely on the side-effect useEffect below.
+  const navigateToRole = (resolvedProfile) => {
+    const target = resolvedProfile?.role === 'official' ? '/official' : '/citizen';
+    navigate(target, { replace: true });
+  };
 
   // ── Handle OAuth redirect errors (from mobile or fallback redirects) ──────
   useEffect(() => {
@@ -247,14 +256,23 @@ export default function Auth() {
 
     setLoading(true);
     try {
+      let firebaseUser;
       if (mode === 'signup') {
-        await signUpWithEmail(email, password, name.trim());
+        const result = await signUpWithEmail(email, password, name.trim());
+        firebaseUser = result?.user;
         toast.success(`Welcome, ${name.trim()}!`);
         setAttempts(0);
       } else {
-        await signInWithEmail(email, password, rememberMe);
+        const result = await signInWithEmail(email, password, rememberMe);
+        firebaseUser = result?.user;
         toast.success('Signed in successfully!');
         setAttempts(0);
+      }
+      // Explicitly fetch profile and navigate — ensures routing works on mobile
+      // even if the onAuthStateChanged side-effect is delayed or missed.
+      if (firebaseUser) {
+        const resolvedProfile = await fetchProfile(firebaseUser);
+        navigateToRole(resolvedProfile);
       }
     } catch (err) {
       const msg = getFirebaseErrorMessage(err);
@@ -278,9 +296,18 @@ export default function Auth() {
 
     try {
       const result = await signInWithGoogle(rememberMe, mode);
-      // If result is undefined (e.g. popup was blocked and fell back to redirect navigation),
-      // the page will navigate away so keep the loading state active.
+      // If result is undefined, the popup was blocked and we fell back to
+      // signInWithRedirect — the page is navigating away, keep loading visible.
       if (!result) return;
+
+      // Popup succeeded: explicitly fetch profile and navigate immediately.
+      // This is more reliable on mobile than waiting for the onAuthStateChanged
+      // side-effect, which can be delayed when the browser reclaims memory.
+      const firebaseUser = result.user;
+      if (firebaseUser) {
+        const resolvedProfile = await fetchProfile(firebaseUser);
+        navigateToRole(resolvedProfile);
+      }
     } catch (err) {
       const msg = getFirebaseErrorMessage(err);
       if (msg) {

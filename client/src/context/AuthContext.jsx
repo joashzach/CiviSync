@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+﻿import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -21,17 +21,7 @@ import { loginUser } from '../api/complaints';
 
 const AuthContext = createContext(null);
 
-// ── Mobile Device Detector ──────────────────────────────────────────────────
-export function isMobileDevice() {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || navigator.vendor || window.opera || '';
-  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|FxiOS/i.test(ua);
-  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  const isSmallScreen = window.innerWidth <= 800;
-  return isMobileUA || (isTouchDevice && isSmallScreen);
-}
-
-// ── Firebase error mapper ───────────────────────────────────────────────────
+// ── Firebase error mapper ────────────────────────────────────────────────────
 const FIREBASE_ERROR_MAP = {
   'auth/email-already-in-use':        'An account with this email already exists. Try signing in instead.',
   'auth/account-already-registered':  'This account is already registered. Please sign in instead.',
@@ -84,6 +74,7 @@ export function AuthProvider({ children }) {
 
   // ── fetchProfile ──────────────────────────────────────────────────────────
   // Fetches (or creates) backend profile for a Firebase user. Never throws.
+  // Exposed in context so auth handlers can await it and navigate explicitly.
   const fetchProfile = useCallback(async (firebaseUser) => {
     if (!firebaseUser) {
       setUser(null);
@@ -134,19 +125,41 @@ export function AuthProvider({ children }) {
   }, []);
 
   // ── Auth initialisation ───────────────────────────────────────────────────
-  // Order of operations:
-  //   1. getRedirectResult — catches returning OAuth redirect (mobile / popup fallback)
-  //   2. onAuthStateChanged — handles all other session changes
-  //
-  // KEY: if redirect result handles the user first, onAuthStateChanged is told to
-  // skip re-fetching via redirectHandledRef to avoid the race condition where
-  // profile ends up null because fetchingRef was locked by the redirect fetch.
+  // CRITICAL ORDER:
+  //   1. Register onAuthStateChanged SYNCHRONOUSLY (no await before it).
+  //      On mobile, Firebase may emit state before an async-gated listener is
+  //      attached — registering first guarantees we never miss the initial event.
+  //   2. Await getRedirectResult in a separate async IIFE running concurrently.
+  //      If it finds a redirect user, set redirectHandledRef so onAuthStateChanged skips.
   useEffect(() => {
     let isMounted = true;
-    let unsubAuth = null;
 
-    async function init() {
-      // ── 1. Redirect result ──────────────────────────────────────────────
+    // ── 1. Register session observer immediately (no async gap) ──────────
+    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!isMounted) return;
+      try {
+        if (firebaseUser) {
+          if (redirectHandledRef.current) {
+            // Redirect path already set user + profile; just clear the flag & loading
+            redirectHandledRef.current = false;
+            if (isMounted) setLoading(false);
+            return;
+          }
+          await fetchProfile(firebaseUser);
+        } else {
+          redirectHandledRef.current = false;
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (err) {
+        console.warn('[Auth] onAuthStateChanged error:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    });
+
+    // ── 2. Resolve any pending OAuth redirect result concurrently ────────
+    (async () => {
       try {
         const redirectResult = await getRedirectResult(auth);
 
@@ -157,7 +170,7 @@ export function AuthProvider({ children }) {
             sessionStorage.removeItem('civisync_auth_redirect_mode');
           } catch (_) {}
 
-          // Enforce signup-only restriction for new users
+          // Enforce signup-only restriction for returning users
           if (savedMode === 'signup') {
             const info = getAdditionalUserInfo(redirectResult);
             if (!(info?.isNewUser ?? false)) {
@@ -168,9 +181,7 @@ export function AuthProvider({ children }) {
                 const e = new Error('This account is already registered. Please sign in instead.');
                 e.code = 'auth/account-already-registered';
                 setRedirectError(e);
-                setLoading(false);
               }
-              unsubAuth = onAuthStateChanged(auth, () => { if (isMounted) setLoading(false); });
               return;
             }
           }
@@ -186,43 +197,27 @@ export function AuthProvider({ children }) {
           console.warn('[Auth] getRedirectResult error:', err?.code, err?.message);
         }
       }
+    })();
 
-      // ── 2. Ongoing session observer ─────────────────────────────────────
-      unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (!isMounted) return;
-        try {
-          if (firebaseUser) {
-            if (redirectHandledRef.current) {
-              // Redirect path already set user + profile; just clear the flag & loading
-              redirectHandledRef.current = false;
-              if (isMounted) setLoading(false);
-              return;
-            }
-            await fetchProfile(firebaseUser);
-          } else {
-            redirectHandledRef.current = false;
-            setUser(null);
-            setProfile(null);
-          }
-        } catch (err) {
-          console.warn('[Auth] onAuthStateChanged error:', err);
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      });
-    }
-
-    init();
-    return () => { isMounted = false; if (unsubAuth) unsubAuth(); };
+    return () => { isMounted = false; unsubAuth(); };
   }, [fetchProfile]);
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
+  // Both desktop and mobile use popup-first. If the popup is blocked or killed
+  // (the normal mobile browser behaviour), automatically fall back to redirect.
   const signInWithGoogle = async (rememberMe = true, expectedMode = null) => {
     await safeSetPersistence(rememberMe);
     try { sessionStorage.setItem('civisync_auth_redirect_mode', expectedMode || 'login'); } catch (_) {}
 
-    // Both desktop and mobile follow the exact same flow: try popup first,
-    // and automatically fall back to redirect if popups are blocked/unsupported.
+    // All codes that mean "popup could not open or was dismissed"
+    const popupFallbackCodes = [
+      'auth/popup-blocked',
+      'auth/popup-closed-by-user',
+      'auth/cancelled-popup-request',
+      'auth/operation-not-supported-in-this-environment',
+      'auth/web-storage-unsupported',
+    ];
+
     try {
       const result = await signInWithPopup(auth, googleProvider);
 
@@ -241,13 +236,11 @@ export function AuthProvider({ children }) {
       try { sessionStorage.removeItem('civisync_auth_redirect_mode'); } catch (_) {}
       return result;
     } catch (err) {
-      const fallbackCodes = [
-        'auth/popup-blocked',
-        'auth/operation-not-supported-in-this-environment',
-        'auth/web-storage-unsupported',
-      ];
-      if (fallbackCodes.includes(err?.code) || err?.message?.toLowerCase().includes('popup blocked')) {
-        console.info('[Auth] Popup blocked/unsupported, falling back to redirect:', err?.code);
+      if (
+        popupFallbackCodes.includes(err?.code) ||
+        err?.message?.toLowerCase().includes('popup')
+      ) {
+        console.info('[Auth] Popup blocked/killed, falling back to redirect:', err?.code);
         return signInWithRedirect(auth, googleProvider);
       }
       throw err;
@@ -263,6 +256,8 @@ export function AuthProvider({ children }) {
   // ── Email sign-up ─────────────────────────────────────────────────────────
   const signUpWithEmail = async (email, password, name) => {
     await safeSetPersistence(true);
+    // Set pendingNameRef BEFORE creating the user so onAuthStateChanged -> fetchProfile
+    // sees the name immediately when it fires.
     if (name) {
       pendingNameRef.current = name;
     }
@@ -301,6 +296,7 @@ export function AuthProvider({ children }) {
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
+      fetchProfile,
     }}>
       {children}
     </AuthContext.Provider>
