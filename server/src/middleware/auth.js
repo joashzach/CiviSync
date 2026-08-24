@@ -32,6 +32,8 @@ const authenticate = async (req, res, next) => {
   }
 
   const email = decodedToken.email || `user_${decodedToken.uid}@civisync.app`;
+  const name = req.body?.name || decodedToken.name || decodedToken.displayName || null;
+  const avatarUrl = req.body?.avatar_url || decodedToken.picture || decodedToken.photoURL || null;
 
   try {
     const official = await Official.findOne({ email: email.toLowerCase() });
@@ -41,18 +43,31 @@ const authenticate = async (req, res, next) => {
       user = await User.create({
         firebase_uid: decodedToken.uid,
         email: email,
+        name: name,
+        avatar_url: avatarUrl,
         role: official ? 'official' : 'citizen',
         department: official ? official.department : null,
       });
-    } else if (official) {
-      // Sync official role & department if updated
-      const changed = user.role !== 'official' || user.department !== official.department;
-      if (changed) {
-        user.role = 'official';
-        user.department = official.department;
-        if (typeof user.save === 'function') {
-          await user.save();
+    } else {
+      let changed = false;
+      if (official) {
+        // Sync official role & department if updated
+        if (user.role !== 'official' || user.department !== official.department) {
+          user.role = 'official';
+          user.department = official.department;
+          changed = true;
         }
+      }
+      if (name && user.name !== name) {
+        user.name = name;
+        changed = true;
+      }
+      if (avatarUrl && user.avatar_url !== avatarUrl) {
+        user.avatar_url = avatarUrl;
+        changed = true;
+      }
+      if (changed && typeof user.save === 'function') {
+        await user.save();
       }
     }
 
@@ -63,6 +78,8 @@ const authenticate = async (req, res, next) => {
       _id: '64b000000000000000000001',
       firebase_uid: decodedToken.uid,
       email: email,
+      name: name,
+      avatar_url: avatarUrl,
       role: 'citizen',
       department: null,
     };
@@ -100,6 +117,8 @@ const optionalAuthenticate = async (req, res, next) => {
   }
 
   const email = decodedToken.email || `user_${decodedToken.uid}@civisync.app`;
+  const name = req.body?.name || decodedToken.name || decodedToken.displayName || null;
+  const avatarUrl = req.body?.avatar_url || decodedToken.picture || decodedToken.photoURL || null;
 
   try {
     const official = await Official.findOne({ email: email.toLowerCase() });
@@ -109,13 +128,28 @@ const optionalAuthenticate = async (req, res, next) => {
       user = await User.create({
         firebase_uid: decodedToken.uid,
         email: email,
+        name: name,
+        avatar_url: avatarUrl,
         role: official ? 'official' : 'citizen',
         department: official ? official.department : null,
       });
-    } else if (official) {
-      const changed = user.role !== 'official' || user.department !== official.department;
-      user.role = 'official';
-      user.department = official.department;
+    } else {
+      let changed = false;
+      if (official) {
+        if (user.role !== 'official' || user.department !== official.department) {
+          user.role = 'official';
+          user.department = official.department;
+          changed = true;
+        }
+      }
+      if (name && user.name !== name) {
+        user.name = name;
+        changed = true;
+      }
+      if (avatarUrl && user.avatar_url !== avatarUrl) {
+        user.avatar_url = avatarUrl;
+        changed = true;
+      }
       if (changed && typeof user.save === 'function') {
         await user.save();
       }
@@ -127,6 +161,8 @@ const optionalAuthenticate = async (req, res, next) => {
       _id: '64b000000000000000000001',
       firebase_uid: decodedToken.uid,
       email: email,
+      name: name,
+      avatar_url: avatarUrl,
       role: 'citizen',
       department: null,
     };

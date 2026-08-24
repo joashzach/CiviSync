@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
@@ -38,28 +38,36 @@ export default function Auth() {
   const location = useLocation();
   const initialMode = location.state?.mode === 'signup' ? 'signup' : 'login';
   const [mode, setMode] = useState(initialMode);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { user, profile, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, profile, freshSignIn, signOutSilently, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
+  // Clear any persisted session on mount so the user must always explicitly sign in
   useEffect(() => {
-    if (user && profile) {
+    signOutSilently();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Only redirect after an explicit, fresh sign-in (not a page-reload session restore)
+  useEffect(() => {
+    if (freshSignIn && user && profile) {
       const destination = profile?.role === 'official' ? '/official' : '/citizen';
       navigate(destination, { replace: true });
     }
-  }, [user, profile, navigate]);
+  }, [freshSignIn, user, profile, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) { toast.error('Please fill in all fields'); return; }
+    if (mode === 'signup' && !name.trim()) { toast.error('Please enter your full name'); return; }
     setLoading(true);
     try {
       if (mode === 'signup') {
-        await signUpWithEmail(email, password);
+        await signUpWithEmail(email, password, name.trim());
       } else {
         await signInWithEmail(email, password);
       }
@@ -280,6 +288,27 @@ export default function Auth() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {mode === 'signup' && (
+              <div>
+                <label className="label">Full Name</label>
+                <div style={{ position: 'relative' }}>
+                  <User size={14} style={{
+                    position: 'absolute', left: 12, top: '50%',
+                    transform: 'translateY(-50%)', color: '#6B6B6B',
+                  }} />
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{ paddingLeft: 34 }}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="label">Email address</label>
               <div style={{ position: 'relative' }}>

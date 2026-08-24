@@ -7,10 +7,14 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { loginUser } from '../api/complaints';
 import toast from 'react-hot-toast';
+
+/** Session-restore flag: true only during initial hydration from persisted auth */
+let _isRestoringSession = true;
 
 const AuthContext = createContext(null);
 
@@ -21,12 +25,14 @@ const isMobileDevice = () =>
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);       // Firebase user
-  const [profile, setProfile] = useState(null); // MongoDB user profile (includes role)
+  const [profile, setProfile] = useState(null); // MongoDB user profile (includes role, name, avatar_url)
   const [loading, setLoading] = useState(true);
+  // freshSignIn = true only when the user explicitly just signed in (not a page-reload restore)
+  const [freshSignIn, setFreshSignIn] = useState(false);
   const prevUidRef = useRef(null);
   const profileLoadingRef = useRef(false);      // Prevent duplicate backend calls
 
-  const resolveProfile = async (firebaseUser) => {
+  const resolveProfile = async (firebaseUser, extraData = {}) => {
     if (!firebaseUser) {
       setUser(null);
       setProfile(null);
@@ -40,27 +46,44 @@ export function AuthProvider({ children }) {
     if (profileLoadingRef.current) return;
     profileLoadingRef.current = true;
 
+    // Is this a brand-new explicit sign-in, or just restoring from a persisted session?
+    const isNewSignIn = !_isRestoringSession || prevUidRef.current !== firebaseUser.uid;
+    const name = extraData.name || firebaseUser.displayName || null;
+    const avatarUrl = extraData.avatar_url || firebaseUser.photoURL || null;
+
     try {
       // Force a fresh token so the axios interceptor definitely has it before
       // the POST /api/auth/login fires (prevents race where token isn't ready yet)
       await firebaseUser.getIdToken(/* forceRefresh= */ true);
 
-      const data = await loginUser();
-      setProfile(data);
+      const data = await loginUser({ name, avatar_url: avatarUrl });
+      const combinedProfile = {
+        ...data,
+        name: data?.name || name || firebaseUser.displayName || null,
+        avatar_url: data?.avatar_url || avatarUrl || firebaseUser.photoURL || null,
+      };
+      setProfile(combinedProfile);
 
       // Show welcome toast only on a new sign-in (not on page reload / token refresh)
-      if (prevUidRef.current !== firebaseUser.uid) {
-        toast.success(`Welcome${data?.email ? `, ${data.email.split('@')[0]}` : ''}!`);
+      if (isNewSignIn) {
+        const greetingName = combinedProfile.name || (data?.email ? data.email.split('@')[0] : '');
+        toast.success(`Welcome${greetingName ? `, ${greetingName}` : ''}!`);
+        setFreshSignIn(true);
       }
     } catch (err) {
       console.warn('Backend login API call failed, using default profile:', err.message);
-      setProfile({
+      const fallbackProfile = {
         email: firebaseUser.email || 'citizen@civisync.demo',
+        name: name || firebaseUser.displayName || null,
+        avatar_url: avatarUrl || firebaseUser.photoURL || null,
         role: 'citizen',
         department: null,
-      });
-      if (prevUidRef.current !== firebaseUser.uid) {
-        toast.success('Signed in!');
+      };
+      setProfile(fallbackProfile);
+      if (isNewSignIn) {
+        const greetingName = fallbackProfile.name || (fallbackProfile.email ? fallbackProfile.email.split('@')[0] : '');
+        toast.success(`Welcome${greetingName ? `, ${greetingName}` : ''}!`);
+        setFreshSignIn(true);
       }
     } finally {
       prevUidRef.current = firebaseUser.uid;
@@ -76,8 +99,6 @@ export function AuthProvider({ children }) {
       try {
         const result = await getRedirectResult(auth);
         if (result?.user) {
-          // onAuthStateChanged will also fire and call resolveProfile — no need to call
-          // it here, but we log for debugging
           console.log('OAuth redirect sign-in completed for:', result.user.email);
         }
       } catch (err) {
@@ -96,6 +117,8 @@ export function AuthProvider({ children }) {
           console.warn('Auth state change error:', err);
         } finally {
           setLoading(false);
+          // After the first auth state resolution, we are no longer restoring a session
+          _isRestoringSession = false;
         }
       });
     };
@@ -111,32 +134,69 @@ export function AuthProvider({ children }) {
    */
   const signInWithGoogle = async () => {
     if (isMobileDevice()) {
-      // Redirect flow: page will navigate away, then return.
-      // The result is captured by getRedirectResult in the useEffect above.
       return signInWithRedirect(auth, googleProvider);
     }
-    return signInWithPopup(auth, googleProvider);
+    const result = await signInWithPopup(auth, googleProvider);
+    if (result?.user) {
+      await resolveProfile(result.user);
+    }
+    return result;
   };
 
   /** Sign in with email + password */
-  const signInWithEmail = (email, password) =>
-    signInWithEmailAndPassword(auth, email, password);
+  const signInWithEmail = async (email, password) => {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    if (result?.user) {
+      await resolveProfile(result.user);
+    }
+    return result;
+  };
 
-  /** Register a new account with email + password */
-  const signUpWithEmail = (email, password) =>
-    createUserWithEmailAndPassword(auth, email, password);
+  /** Register a new account with email + password and optional display name */
+  const signUpWithEmail = async (email, password, name) => {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    if (name && result?.user) {
+      try {
+        await updateProfile(result.user, { displayName: name });
+      } catch (err) {
+        console.warn('Failed to update displayName on user:', err.message);
+      }
+    }
+    if (result?.user) {
+      await resolveProfile(result.user, { name });
+    }
+    return result;
+  };
 
   const signOut = async () => {
     await firebaseSignOut(auth);
     setUser(null);
     setProfile(null);
+    setFreshSignIn(false);
     prevUidRef.current = null;
     profileLoadingRef.current = false;
+    _isRestoringSession = false;
+  };
+
+  /**
+   * Sign out silently without redirecting — used by the Auth page on mount to
+   * clear any persisted session so the user must explicitly choose an account.
+   */
+  const signOutSilently = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (_) { /* ignore */ }
+    setUser(null);
+    setProfile(null);
+    setFreshSignIn(false);
+    prevUidRef.current = null;
+    profileLoadingRef.current = false;
+    _isRestoringSession = false;
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, signOut, signInWithGoogle, signInWithEmail, signUpWithEmail }}
+      value={{ user, profile, loading, freshSignIn, signOut, signOutSilently, signInWithGoogle, signInWithEmail, signUpWithEmail }}
     >
       {children}
     </AuthContext.Provider>

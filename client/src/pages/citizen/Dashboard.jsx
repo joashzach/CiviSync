@@ -11,7 +11,7 @@ import { getStatusBadgeClass, getSeverityBadgeClass, formatDistanceKm, truncate 
 import { getCurrentUserLocation } from '../../lib/location';
 
 export default function CitizenDashboard() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [stats, setStats] = useState(null);
   const [nearby, setNearby] = useState([]);
   const [loadingNearby, setLoadingNearby] = useState(true);
@@ -30,13 +30,13 @@ export default function CitizenDashboard() {
     });
   }, []);
 
-  const firstName = profile?.email?.split('@')[0] ?? 'there';
+  const displayName = profile?.name || user?.displayName || (profile?.email ? profile.email.split('@')[0] : 'there');
 
   return (
     <div className="animate-fade-in">
       {/* Welcome */}
       <div className="page-header">
-        <h1 className="page-title">Welcome back, {firstName} 👋</h1>
+        <h1 className="page-title">Welcome back, {displayName} 👋</h1>
         <p className="page-subtitle">
           Help improve your city by reporting and supporting civic issues.
         </p>

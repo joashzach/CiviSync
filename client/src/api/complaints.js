@@ -30,5 +30,5 @@ export const checkDuplicates = (category, latitude, longitude) =>
 export const deleteComplaint = (id) =>
   api.delete(`/complaints/${id}`).then((r) => r.data);
 
-export const loginUser = () =>
-  api.post('/auth/login').then((r) => r.data);
+export const loginUser = (data) =>
+  api.post('/auth/login', data).then((r) => r.data);

@@ -23,11 +23,24 @@ const navItems = [
 ];
 
 export default function OfficialLayout({ children }) {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const sidebarRef = useRef(null);
+
+  const displayName = profile?.name || user?.displayName || (profile?.email ? profile.email.split('@')[0] : 'Official');
+  const email = profile?.email || user?.email || '';
+  const photoURL = profile?.avatar_url || user?.photoURL || null;
+  const dept = profile?.department || null;
+  const initials = (displayName || email || 'O')
+    .split(' ')
+    .map(part => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'O';
 
   // Close sidebar on route change (mobile nav)
   useEffect(() => {
@@ -65,8 +78,22 @@ export default function OfficialLayout({ children }) {
           <CivicMark size={26} />
           CiviSync
         </div>
-        {/* Spacer to keep logo centered */}
-        <div style={{ width: 34 }} />
+        {photoURL && !imgError ? (
+          <img
+            src={photoURL}
+            alt={displayName}
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+            style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', border: '1px solid #E8E5DE' }}
+          />
+        ) : (
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%', background: '#F7EDE6', color: '#C17D5A',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
+          }}>
+            {initials}
+          </div>
+        )}
       </div>
 
       {/* ── Sidebar Overlay (mobile) ───────────────────────────────────────── */}
@@ -99,17 +126,79 @@ export default function OfficialLayout({ children }) {
               <X size={20} />
             </button>
           </div>
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #E8E5DE' }}>
-            <p style={{
-              fontSize: 9.5, color: '#C17D5A', fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3,
-            }}>Official</p>
-            <p style={{
-              fontSize: 12, color: '#3A3A3C', fontWeight: 500,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {profile?.department || profile?.email}
-            </p>
+          <div style={{
+            marginTop: 14,
+            paddingTop: 14,
+            borderTop: '1px solid #E8E5DE',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            {photoURL && !imgError ? (
+              <img
+                src={photoURL}
+                alt={displayName}
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '1.5px solid #E8E5DE',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: '#F7EDE6',
+                  color: '#C17D5A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  border: '1px solid rgba(193,125,90,0.2)',
+                }}
+              >
+                {initials}
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#1C1C1E',
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={displayName}
+              >
+                {displayName}
+              </p>
+              <p
+                style={{
+                  fontSize: 11.5,
+                  color: '#6B6B6B',
+                  fontWeight: 400,
+                  marginTop: 2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={dept ? `${dept} • ${email}` : email}
+              >
+                {dept || email}
+              </p>
+            </div>
           </div>
         </div>
 
