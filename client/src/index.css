@@ -760,7 +760,34 @@ select.input {
 }
 .landing-mobile-menu-open.active { display: flex; }
 
+/* ─── Report Issue Grid ─────────────────────────────────────────────────── */
+.report-issue-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.report-issue-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 868px) {
+  .report-issue-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .report-issue-form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   /* Sidebar: hidden by default, shown when .sidebar-open is added */
   .sidebar {
@@ -819,3 +846,4 @@ select.input {
   .drawer-body { padding: 16px; }
   .drawer-header { padding: 14px 16px; }
 }
+

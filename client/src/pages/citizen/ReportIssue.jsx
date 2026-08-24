@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUserLocation } from '../../lib/location';
 
-const DEPARTMENTS = [
+const CATEGORIES = [
   'Roads & Highways',
   'Sanitation',
   'Electrical Maintenance',
@@ -21,11 +21,10 @@ const DEPARTMENTS = [
   'Town Planning & Encroachment',
   'Pollution Control',
 ];
-const CATEGORIES = DEPARTMENTS;
 const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 const DEFAULT_FORM = {
-  title: '', description: '', category: '', department: '', severity: '',
+  title: '', description: '', category: '', severity: '',
 };
 
 /** Custom pin icon for location marker */
@@ -124,7 +123,6 @@ export default function ReportIssue() {
         title: result.title || '',
         description: result.description || '',
         category: result.category || '',
-        department: result.department || '',
         severity: result.severity || '',
       });
       setAiDone(true);
@@ -141,6 +139,7 @@ export default function ReportIssue() {
     try {
       await createComplaint({
         ...form,
+        department: form.category,
         image_url: imageUrl,
         latitude: location.lat,
         longitude: location.lng,
@@ -158,7 +157,7 @@ export default function ReportIssue() {
     e.preventDefault();
     if (!imageUrl)  { toast.error('Please upload an image'); return; }
     if (!location)  { toast.error('Location not detected'); return; }
-    if (!form.title || !form.category || !form.department || !form.severity) {
+    if (!form.title || !form.category || !form.severity) {
       toast.error('Please fill in all required fields'); return;
     }
     setSubmitting(true);
@@ -188,7 +187,7 @@ export default function ReportIssue() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
+        <div className="report-issue-grid">
           {/* ── Left Column ───────────────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {/* Image Upload */}
@@ -215,7 +214,7 @@ export default function ReportIssue() {
                       }} />
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>Analysing with AI...</p>
-                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Detecting category, department &amp; severity</p>
+                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Detecting category &amp; severity</p>
                       </div>
                     </>
                   ) : aiDone ? (
@@ -325,7 +324,7 @@ export default function ReportIssue() {
               </div>
 
               {/* Category & Severity */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="report-issue-form-row">
                 <div>
                   <label className="label">Category *</label>
                   <select className="input" value={form.category} onChange={update('category')} required>
@@ -340,15 +339,6 @@ export default function ReportIssue() {
                     {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="label">Responsible Department *</label>
-                <select className="input" value={form.department} onChange={update('department')} required>
-                  <option value="">Select department</option>
-                  {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
               </div>
 
               {/* Description */}

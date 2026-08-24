@@ -137,8 +137,7 @@ export default function MyComplaints() {
                 <h3 style={{ fontSize: 13.5, fontWeight: 600, color: '#1C1C1E', marginBottom: 4, letterSpacing: '-0.1px' }}>
                   {truncate(c.title, 55)}
                 </h3>
-                <p style={{ fontSize: 12, color: '#6B6B6B', marginBottom: 3 }}>{c.category}</p>
-                <p style={{ fontSize: 12, color: '#6B6B6B' }}>{c.department}</p>
+                <p style={{ fontSize: 12, color: '#6B6B6B' }}>{c.category}</p>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DE' }}>
                   <p style={{ fontSize: 11.5, color: '#6B6B6B' }}>

@@ -114,7 +114,6 @@ export default function OfficialMapView() {
                     </span>
                     <span style={{ fontSize: 11, color: '#6B6B6B', alignSelf: 'center' }}>{c.category}</span>
                   </div>
-                  <p style={{ fontSize: 11.5, color: '#6B6B6B', marginBottom: 8 }}>{c.department}</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#6B6B6B', marginBottom: 10 }}>
                     <ThumbsUp size={11} /> {c.support_count} supporters
                   </div>

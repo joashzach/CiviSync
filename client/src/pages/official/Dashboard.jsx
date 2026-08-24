@@ -156,7 +156,6 @@ export default function OfficialDashboard() {
               <tr>
                 <th>Title</th>
                 <th>Category</th>
-                <th>Department</th>
                 <th>Severity</th>
                 <th>Status</th>
                 <th
@@ -178,7 +177,7 @@ export default function OfficialDashboard() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i}>
-                    {[...Array(8)].map((_, j) => (
+                    {[...Array(7)].map((_, j) => (
                       <td key={j}>
                         <div className="skeleton" style={{ height: 14, borderRadius: 5, width: '80%' }} />
                       </td>
@@ -187,7 +186,7 @@ export default function OfficialDashboard() {
                 ))
               ) : complaints.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#6B6B6B' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#6B6B6B' }}>
                     No complaints found
                   </td>
                 </tr>
@@ -196,7 +195,6 @@ export default function OfficialDashboard() {
                   <tr key={c._id} onClick={() => setSelectedId(c._id)}>
                     <td style={{ fontWeight: 600, color: '#1C1C1E' }}>{truncate(c.title, 45)}</td>
                     <td style={{ color: '#3A3A3C' }}>{c.category}</td>
-                    <td style={{ color: '#6B6B6B', fontSize: 12 }}>{c.department}</td>
                     <td><span className={getSeverityBadgeClass(c.severity)}>{c.severity}</span></td>
                     <td><span className={getStatusBadgeClass(c.status)}>{c.status}</span></td>
                     <td style={{ color: '#3A3A3C', fontWeight: 500 }}>{c.support_count}</td>
