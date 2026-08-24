@@ -1,4 +1,4 @@
-# CivicConnect
+# CiviSync
 
 **AI-Powered Crowdsourced Civic Issue Reporting & Resolution System**
 
@@ -112,7 +112,7 @@ complaint management.
 
 ------------------------------------------------------------------------
 
-# 🔄 Application Workflow
+# Application Workflow
 
 ``` text
 Landing Page
@@ -239,7 +239,7 @@ details - Update complaint status
 
 ------------------------------------------------------------------------
 
-# 🚀 Deployment
+#  Deployment
 
   Layer      Platform
   ---------- ------------------------------
