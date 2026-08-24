@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 import { uploadImage } from '../api/upload';
 import toast from 'react-hot-toast';
 
@@ -22,12 +22,12 @@ export default function ImageUpload({ onUploaded, onClear }) {
     try {
       const result = await uploadImage(file);
       onUploaded(result.url);
-      toast.success('Image uploaded successfully');
+      toast.success('Image attached');
     } catch (err) {
-      console.warn('Backend Cloudinary upload notice:', err);
+      console.warn('Upload notice:', err);
       // Fallback: use local blob URL preview so form preview works seamlessly
       onUploaded(objectUrl);
-      toast.success('Image loaded for report');
+      toast.success('Image attached');
     } finally {
       setUploading(false);
     }
@@ -57,18 +57,15 @@ export default function ImageUpload({ onUploaded, onClear }) {
         {uploading && (
           <div style={{
             position: 'absolute', inset: 0,
-            background: 'rgba(255,255,255,0.7)',
+            background: 'rgba(255,255,255,0.75)',
+            backdropFilter: 'blur(2px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: 10,
           }}>
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
               border: '2.5px solid #E8E5DE', borderTopColor: '#011410',
               animation: 'spin 0.7s linear infinite',
             }} />
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
-              Uploading to Cloudinary...
-            </span>
           </div>
         )}
         {!uploading && (
@@ -97,12 +94,11 @@ export default function ImageUpload({ onUploaded, onClear }) {
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
     >
-      {/* capture="environment" opens the back camera on mobile as primary option */}
+      {/* Standard file input without capture="environment" lets mobile devices choose between Camera and Gallery */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
@@ -119,7 +115,7 @@ export default function ImageUpload({ onUploaded, onClear }) {
             Take Photo or Upload
           </p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Tap to use camera or choose from gallery
+            Tap to take a photo or select from gallery
           </p>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
             PNG, JPG, WEBP up to 10MB

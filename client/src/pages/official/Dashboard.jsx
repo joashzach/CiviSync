@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  FileText, Clock, Briefcase, Zap, CheckCircle2,
+  Inbox, Clock, Briefcase, RotateCw, ShieldCheck,
   Search, ChevronLeft, ChevronRight, Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -93,12 +93,12 @@ export default function OfficialDashboard() {
     <div className="animate-fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <h1 className="page-title">Official Dashboard</h1>
+          <h1 className="page-title">Official Operations</h1>
           {assignedDept && (
             <span style={{
-              background: '#DFF0D8', color: '#011410',
-              fontSize: 12, fontWeight: 600, padding: '4px 12px',
-              borderRadius: 100, border: '1px solid rgba(26,58,10,0.2)',
+              background: '#D8EAE3', color: '#1B4332',
+              fontSize: 12, fontWeight: 700, padding: '4px 14px',
+              borderRadius: 100, border: '1px solid rgba(27, 67, 50, 0.2)',
             }}>
               {assignedDept}
             </span>
@@ -106,18 +106,18 @@ export default function OfficialDashboard() {
         </div>
         <p className="page-subtitle">
           {assignedDept
-            ? `Showing complaints assigned to ${assignedDept}`
-            : 'Manage and resolve civic complaints across all departments'}
+            ? `Managing complaints assigned to ${assignedDept}`
+            : 'Manage and resolve civic reports across all departments'}
         </p>
       </div>
 
       {/* Stats */}
-      <div className="stat-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 28 }}>
-        <StatCard icon={<FileText size={18} />}    value={stats?.total}      label="Total"       color="#011410" bgColor="#DFF0D8" />
-        <StatCard icon={<Clock size={18} />}       value={stats?.pending}    label="Pending"     color="#D97706" bgColor="#FEF3C7" />
-        <StatCard icon={<Briefcase size={18} />}   value={stats?.assigned}   label="Assigned"    color="#2563EB" bgColor="#DBEAFE" />
-        <StatCard icon={<Zap size={18} />}         value={stats?.inProgress} label="In Progress" color="#7C3AED" bgColor="#EDE9FE" />
-        <StatCard icon={<CheckCircle2 size={18} />} value={stats?.resolved}  label="Resolved"    color="#16A34A" bgColor="#DCFCE7" />
+      <div className="stat-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 28 }}>
+        <StatCard icon={<Inbox size={20} />}       value={stats?.total ?? 0}      label="Total Reports"       color="#3B6B99" bgColor="#EAF1F8" />
+        <StatCard icon={<Clock size={20} />}       value={stats?.pending ?? 0}    label="Awaiting Review"     color="#C2923A" bgColor="#FBF4E4" />
+        <StatCard icon={<Briefcase size={20} />}   value={stats?.assigned ?? 0}   label="Assigned"            color="#3861A7" bgColor="#EBF0FA" />
+        <StatCard icon={<RotateCw size={20} />}    value={stats?.inProgress ?? 0} label="Actively in Progress" color="#DA6E35" bgColor="#FDF0E7" />
+        <StatCard icon={<ShieldCheck size={20} />} value={stats?.resolved ?? 0}  label="Successfully Resolved" color="#2E9952" bgColor="#EAF6EE" />
       </div>
 
       {/* Filters */}

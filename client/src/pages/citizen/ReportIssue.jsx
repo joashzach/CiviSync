@@ -10,7 +10,12 @@ import { analyzeImage } from '../../api/ai';
 import { createComplaint, checkDuplicates } from '../../api/complaints';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUserLocation } from '../../lib/location';
+import {
+  getCurrentUserLocation,
+  getCachedLocation,
+  subscribeToLocationUpdates,
+  DEFAULT_LOC,
+} from '../../lib/location';
 
 const CATEGORIES = [
   'Roads & Highways',
@@ -31,12 +36,12 @@ const DEFAULT_FORM = {
 const pinIcon = L.divIcon({
   className: '',
   html: `<div style="
-    width:22px;height:22px;border-radius:50%;
-    background:#011410;border:3px solid #FAFAF7;
-    box-shadow:0 2px 10px rgba(0,0,0,0.35);
+    width:24px;height:24px;border-radius:50%;
+    background:#011410;border:3px solid #FFFFFF;
+    box-shadow:0 3px 12px rgba(0,0,0,0.3);
   "></div>`,
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
 
 /** Click anywhere on the map to reposition the marker */
@@ -93,25 +98,45 @@ export default function ReportIssue() {
   const [analyzing, setAnalyzing]   = useState(false);
   const [aiDone, setAiDone]         = useState(false);
   const [form, setForm]             = useState(DEFAULT_FORM);
-  const [location, setLocation]     = useState(null);
+  const [location, setLocation]     = useState(() => getCachedLocation() || DEFAULT_LOC);
   const [locating, setLocating]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [duplicate, setDuplicate]   = useState(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const userAdjustedRef = useRef(false);
 
-  useEffect(() => { detectLocation(); }, []);
+  useEffect(() => {
+    detectLocation(false);
+
+    const unsubscribe = subscribeToLocationUpdates((loc) => {
+      if (loc?.lat && loc?.lng && !userAdjustedRef.current) {
+        setLocation(loc);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => { if (imageUrl) runAIAnalysis(imageUrl); }, [imageUrl]);
 
-  const detectLocation = async () => {
+  const detectLocation = async (force = false) => {
     setLocating(true);
     try {
-      const loc = await getCurrentUserLocation();
-      setLocation(loc);
+      const loc = await getCurrentUserLocation({ forceGPS: force });
+      if (loc?.lat && loc?.lng) {
+        userAdjustedRef.current = false;
+        setLocation(loc);
+      }
     } catch {
-      setLocation({ lat: 12.9716, lng: 77.5946 });
+      setLocation(getCachedLocation() || DEFAULT_LOC);
     } finally {
       setLocating(false);
     }
+  };
+
+  const handleLocationChange = (newLoc) => {
+    userAdjustedRef.current = true;
+    setLocation(newLoc);
   };
 
   const runAIAnalysis = async (url) => {
@@ -244,7 +269,7 @@ export default function ReportIssue() {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={detectLocation}
+                  onClick={() => detectLocation(true)}
                   disabled={locating}
                 >
                   <LocateFixed size={12} />
@@ -266,8 +291,8 @@ export default function ReportIssue() {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
                     <FlyTo position={location} />
-                    <ClickHandler onMapClick={setLocation} />
-                    <LocationMarker position={location} onChange={setLocation} />
+                    <ClickHandler onMapClick={handleLocationChange} />
+                    <LocationMarker position={location} onChange={handleLocationChange} />
                   </MapContainer>
                 ) : (
                   <div style={{

@@ -1,18 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, getFirebaseErrorMessage } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+const MAX_ATTEMPTS   = 5;      // Lock the form after this many consecutive failures
+const LOCKOUT_SEC    = 60;     // Lockout duration in seconds
+const MIN_PW_LENGTH  = 8;
+const EXACT_AUTH_GREEN = '#011410'; // EXACT green of the /auth left bar
+
+// ── Password strength scorer ──────────────────────────────────────────────────
+function scorePassword(pw) {
+  if (!pw) return { score: 0, label: '', color: '' };
+  let score = 0;
+  if (pw.length >= MIN_PW_LENGTH)  score++;
+  if (pw.length >= 12)             score++;
+  if (/[A-Z]/.test(pw))           score++;
+  if (/[0-9]/.test(pw))           score++;
+  if (/[^A-Za-z0-9]/.test(pw))   score++;
+
+  const levels = [
+    { label: 'Too short',  color: '#DC2626' },
+    { label: 'Weak',       color: '#EA580C' },
+    { label: 'Fair',       color: '#D97706' },
+    { label: 'Good',       color: '#16A34A' },
+    { label: 'Strong',     color: '#15803D' },
+    { label: 'Very strong',color: '#166534' },
+  ];
+  return { score, ...levels[Math.min(score, levels.length - 1)] };
+}
+
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
-function CivicMark({ size = 36 }) {
+function CivicMark({ size = 36, stroke = EXACT_AUTH_GREEN }) {
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" fill="#011410" opacity="0.12" />
-      <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" stroke="#011410" strokeWidth="1.8" strokeLinejoin="round" fill="none" />
-      <path d="M18 10c-1.5 2.5-4 3.8-4 3.8s0 4.7 4 8.2c4-3.5 4-8.2 4-8.2S19.5 12.5 18 10z" fill="#011410" opacity="0.8" />
-      <path d="M14 20.5c1.2.8 2.6 1.5 4 2.5" stroke="#011410" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-      <path d="M22 20.5c-1.2.8-2.6 1.5-4 2.5" stroke="#011410" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+      <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" fill={stroke} opacity="0.12" />
+      <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" fill="none" />
+      <path d="M18 10c-1.5 2.5-4 3.8-4 3.8s0 4.7 4 8.2c4-3.5 4-8.2 4-8.2S19.5 12.5 18 10z" fill={stroke} opacity="0.8" />
+      <path d="M14 20.5c1.2.8 2.6 1.5 4 2.5" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+      <path d="M22 20.5c-1.2.8-2.6 1.5-4 2.5" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
     </svg>
   );
 }
@@ -29,385 +56,567 @@ function GoogleIcon() {
 }
 
 const PERKS = [
-  { icon: <Zap size={16} />, text: 'AI classifies issues in seconds' },
-  { icon: <MapPin size={16} />, text: 'GPS-pinned reports on a live map' },
-  { icon: <Users size={16} />, text: 'Community-driven civic action' },
+  { icon: <Zap size={15} />,    text: 'AI classifies issues in seconds' },
+  { icon: <MapPin size={15} />, text: 'GPS-pinned reports on a live map' },
+  { icon: <Users size={15} />,  text: 'Community-driven civic action' },
 ];
 
+// ── Spinner ───────────────────────────────────────────────────────────────────
+function Spinner({ size = 15, light = false }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      border: `2px solid ${light ? 'rgba(255,255,255,0.3)' : '#E8E5DE'}`,
+      borderTopColor: light ? '#fff' : EXACT_AUTH_GREEN,
+      animation: 'spin 0.7s linear infinite',
+      flexShrink: 0,
+    }} />
+  );
+}
+
+// ── Password strength bar ─────────────────────────────────────────────────────
+function StrengthBar({ password }) {
+  const { score, label, color } = scorePassword(password);
+  if (!password) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 3 }}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} style={{
+            flex: 1, height: 3, borderRadius: 4,
+            background: i <= score ? color : '#E8E5DE',
+            transition: 'background 0.2s ease',
+          }} />
+        ))}
+      </div>
+      <span style={{ fontSize: 11, color, fontWeight: 600 }}>{label}</span>
+    </div>
+  );
+}
+
+// ── Lockout countdown ─────────────────────────────────────────────────────────
+function LockoutBanner({ secondsLeft }) {
+  return (
+    <div style={{
+      background: '#FEF2F2', border: '1px solid #FECACA',
+      borderRadius: 8, padding: '8px 12px',
+      display: 'flex', alignItems: 'center', gap: 8,
+      marginBottom: 12,
+    }}>
+      <Lock size={13} color="#DC2626" style={{ flexShrink: 0 }} />
+      <span style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.4 }}>
+        Too many attempts. Wait <strong>{secondsLeft}s</strong> to retry.
+      </span>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function Auth() {
-  const location = useLocation();
+  const location    = useLocation();
   const initialMode = location.state?.mode === 'signup' ? 'signup' : 'login';
-  const [mode, setMode] = useState(initialMode);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+
+  const [mode,         setMode]         = useState(initialMode);
+  const [name,         setName]         = useState('');
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [rememberMe,   setRememberMe]   = useState(true);
+  const [loading,      setLoading]      = useState(false);
+  const [googleLoading,setGoogleLoading]= useState(false);
+
+  // ── Brute-force protection state ──────────────────────────────────────────
+  const [attempts,     setAttempts]     = useState(0);
+  const [lockedUntil,  setLockedUntil]  = useState(null);
+  const [secondsLeft,  setSecondsLeft]  = useState(0);
+  const lockTimerRef = useRef(null);
+
   const { user, profile, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to respective dashboard as soon as user & profile are ready
+  // ── Redirect on auth ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (user && profile) {
-      const destination = profile?.role === 'official' ? '/official' : '/citizen';
-      navigate(destination, { replace: true });
+    if (user) {
+      navigate(profile?.role === 'official' ? '/official' : '/citizen', { replace: true });
     }
   }, [user, profile, navigate]);
 
+  // ── Lockout countdown timer ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const tick = () => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setAttempts(0);
+        setSecondsLeft(0);
+        clearInterval(lockTimerRef.current);
+      } else {
+        setSecondsLeft(remaining);
+      }
+    };
+    tick();
+    lockTimerRef.current = setInterval(tick, 1000);
+    return () => clearInterval(lockTimerRef.current);
+  }, [lockedUntil]);
+
+  const isLocked    = !!lockedUntil && Date.now() < lockedUntil;
+  const isAnyLoading = loading || googleLoading;
+
+  // ── Mode switch ───────────────────────────────────────────────────────────
+  const switchMode = (m) => {
+    setMode(m);
+    setName('');
+    setEmail('');
+    setPassword('');
+    setShowPassword(false);
+  };
+
+  // ── Client-side validation ────────────────────────────────────────────────
+  const validate = () => {
+    if (mode === 'signup' && !name.trim()) {
+      toast.error('Please enter your full name'); return false;
+    }
+    if (!email) {
+      toast.error('Please enter your email address'); return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Please enter a valid email address'); return false;
+    }
+    if (!password) {
+      toast.error('Please enter a password'); return false;
+    }
+    if (password.length < MIN_PW_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PW_LENGTH} characters`); return false;
+    }
+    if (mode === 'signup') {
+      const { score } = scorePassword(password);
+      if (score < 2) {
+        toast.error('Please choose a stronger password');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // ── Record a failed attempt / trigger lockout ────────────────────────────
+  const recordFailure = () => {
+    const next = attempts + 1;
+    setAttempts(next);
+    if (next >= MAX_ATTEMPTS) {
+      setLockedUntil(Date.now() + LOCKOUT_SEC * 1000);
+      toast.error(`Account temporarily locked for ${LOCKOUT_SEC} seconds.`);
+    } else {
+      const remaining = MAX_ATTEMPTS - next;
+      if (remaining <= 2) {
+        toast.error(`${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`);
+      }
+    }
+  };
+
+  // ── Email / Password submit ───────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) { toast.error('Please fill in all fields'); return; }
-    if (mode === 'signup' && !name.trim()) { toast.error('Please enter your full name'); return; }
+    if (isLocked || isAnyLoading) return;
+    if (!validate()) return;
+
     setLoading(true);
     try {
       if (mode === 'signup') {
         await signUpWithEmail(email, password, name.trim());
         toast.success(`Welcome, ${name.trim()}!`);
+        setAttempts(0);
       } else {
-        await signInWithEmail(email, password);
+        await signInWithEmail(email, password, rememberMe);
         toast.success('Signed in successfully!');
+        setAttempts(0);
       }
     } catch (err) {
-      toast.error(err.message || 'Authentication failed');
+      const msg = getFirebaseErrorMessage(err);
+      if (msg) {
+        toast.error(msg);
+        if (err.code === 'auth/email-already-in-use') {
+          switchMode('login');
+        } else if (mode === 'login') {
+          recordFailure();
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Google sign-in (Popup) ────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
+    if (isLocked || isAnyLoading) return;
     setGoogleLoading(true);
+
+    const onWindowRefocus = () => {
+      setTimeout(() => {
+        setGoogleLoading(false);
+      }, 400);
+    };
+    window.addEventListener('focus', onWindowRefocus, { once: true });
+
     try {
-      await signInWithGoogle();
-      toast.success('Signed in with Google!');
+      await signInWithGoogle(rememberMe, mode);
     } catch (err) {
-      const ignoredCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
-      if (!ignoredCodes.includes(err.code)) {
-        toast.error(err.message || 'Google sign-in failed');
+      const msg = getFirebaseErrorMessage(err);
+      if (msg) {
+        toast.error(msg);
+        if (err.code === 'auth/account-already-registered') {
+          switchMode('login');
+        }
       }
     } finally {
+      window.removeEventListener('focus', onWindowRefocus);
       setGoogleLoading(false);
     }
   };
 
+  if (user) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        background: '#F7F5F0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: "'Poppins', sans-serif",
+      }}>
+        <Spinner size={32} />
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      minHeight: '100vh',
+    <div className="auth-root-container" style={{
+      height: '100vh',
+      width: '100vw',
       background: '#F7F5F0',
       display: 'flex',
       fontFamily: "'Poppins', sans-serif",
+      overflow: 'hidden',
     }}>
-      {/* ── Left Panel — hidden on mobile via CSS ───────────────────────────── */}
-      <div
-        className="auth-left-panel"
-        style={{
-          width: '45%',
-          minHeight: '100vh',
-          background: '#011410',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 'clamp(32px, 5vw, 52px) clamp(24px, 4vw, 48px)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
+      {/* ── Left branding panel (100% Static on both Sign In & Register) ──── */}
+      <div className="auth-left-panel" style={{
+        width: '45%',
+        height: '100vh',
+        background: EXACT_AUTH_GREEN,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        padding: 'clamp(32px, 4vw, 48px)',
+        position: 'relative',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}>
         {/* Subtle texture pattern */}
         <div style={{
           position: 'absolute', inset: 0, opacity: 0.06,
-          backgroundImage: `radial-gradient(circle at 2px 2px, #fff 1px, transparent 0)`,
+          backgroundImage: 'radial-gradient(circle at 2px 2px, #fff 1px, transparent 0)',
           backgroundSize: '28px 28px',
+          pointerEvents: 'none',
         }} />
 
-        {/* Logo */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'auto' }}>
+        {/* Top: Logo */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 10,
+            width: 38, height: 38, borderRadius: 10,
             background: 'rgba(255,255,255,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <CivicMark size={28} />
+            <CivicMark size={26} stroke="#fff" />
           </div>
           <span style={{ fontWeight: 700, fontSize: 17, color: '#fff', letterSpacing: '-0.2px' }}>CiviSync</span>
         </div>
 
-        {/* Hero content */}
-        <div style={{ position: 'relative', marginTop: 'auto', marginBottom: 'auto', paddingTop: 48 }}>
+        {/* Middle: Static Hero Content */}
+        <div style={{ position: 'relative', padding: '24px 0' }}>
           <h1 style={{
-            fontSize: 'clamp(24px, 3vw, 38px)',
+            fontSize: 'clamp(24px, 2.6vw, 34px)',
             fontWeight: 800, color: '#fff',
-            lineHeight: 1.15, marginBottom: 18,
+            lineHeight: 1.15, marginBottom: 14,
             letterSpacing: '-0.8px',
           }}>
-            Civic action
-            <br />
-            starts here.
+            Civic action<br />starts here.
           </h1>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.75, maxWidth: 340, marginBottom: 40 }}>
-            Report issues, track progress, and work with your community to build a better city — all in one place.
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65, maxWidth: 330, marginBottom: 28 }}>
+            Report issues, track progress, and work with your community to build a better city.
           </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {PERKS.map(({ icon, text }) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 30, height: 30, borderRadius: 8,
+                  width: 28, height: 28, borderRadius: 7,
                   background: 'rgba(255,255,255,0.12)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#E5F2E2', flexShrink: 0,
-                }}>
-                  {icon}
-                </div>
-                <span style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.8)', fontWeight: 400 }}>{text}</span>
+                }}>{icon}</div>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bottom note */}
-        <div style={{ position: 'relative', marginTop: 'auto' }}>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-            © CiviSync
-          </p>
-        </div>
+        {/* Bottom space placeholder to keep static alignment */}
+        <div style={{ height: 16 }} />
       </div>
 
-      {/* ── Right Panel ────────────────────────────────────────────────────── */}
-      <div style={{
+      {/* ── Right form panel (Fixed viewport, zero scroll on desktop) ────── */}
+      <div className="auth-right-panel" style={{
         flex: 1,
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 'clamp(24px, 5vw, 40px) clamp(16px, 5vw, 48px)',
+        padding: '24px clamp(16px, 4vw, 40px)',
         background: '#F7F5F0',
-        minHeight: '100vh',
         overflowY: 'auto',
       }}>
-        <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ width: '100%', maxWidth: 380 }}>
 
           {/* Back link */}
           <a href="/" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            color: '#6B6B6B', fontSize: 13, textDecoration: 'none',
-            marginBottom: 36, fontWeight: 500,
-            transition: 'color 0.15s',
+            color: '#6B6B6B', fontSize: 12.5, textDecoration: 'none',
+            marginBottom: 20, fontWeight: 500, transition: 'color 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#1C1C1E'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#6B6B6B'; }}
-          >
-            <ArrowLeft size={14} /> Back to home
+          onMouseEnter={e => { e.currentTarget.style.color = EXACT_AUTH_GREEN; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#6B6B6B'; }}>
+            <ArrowLeft size={13} /> Back to home
           </a>
 
-          {/* Mobile logo — only shown when left panel is hidden */}
-          <div className="auth-mobile-logo" style={{
-            display: 'none',
-            alignItems: 'center', gap: 10, marginBottom: 28,
-          }}>
-            <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              background: '#011410',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {/* White version of CivicMark for dark bg */}
-              <svg width={22} height={22} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" fill="#fff" opacity="0.2" />
-                <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" fill="none" />
-                <path d="M18 10c-1.5 2.5-4 3.8-4 3.8s0 4.7 4 8.2c4-3.5 4-8.2 4-8.2S19.5 12.5 18 10z" fill="#fff" opacity="0.9" />
-                <path d="M14 20.5c1.2.8 2.6 1.5 4 2.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-                <path d="M22 20.5c-1.2.8-2.6 1.5-4 2.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-              </svg>
+          {/* Mobile logo (hidden on desktop) */}
+          <div className="auth-mobile-logo" style={{ display: 'none', alignItems: 'center', gap: 9, marginBottom: 20 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: EXACT_AUTH_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CivicMark size={20} stroke="#fff" />
             </div>
             <span style={{ fontWeight: 700, fontSize: 16, color: '#1C1C1E', letterSpacing: '-0.2px' }}>CiviSync</span>
           </div>
 
           {/* Mode toggle */}
           <div style={{
-            display: 'flex',
-            background: '#FAFAF7',
-            border: '1px solid #E8E5DE',
-            borderRadius: 10,
-            padding: 4,
-            marginBottom: 28,
+            display: 'flex', background: '#FAFAF7',
+            border: '1px solid #E8E5DE', borderRadius: 9,
+            padding: 3, marginBottom: 18,
           }}>
             {['login', 'signup'].map(m => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                style={{
-                  flex: 1, padding: '8px 0',
-                  borderRadius: 7, border: 'none',
-                  fontFamily: "'Poppins', sans-serif",
-                  fontWeight: 600, fontSize: 13.5,
-                  cursor: 'pointer',
-                  transition: 'all 0.16s ease',
-                  background: mode === m ? '#011410' : 'transparent',
-                  color: mode === m ? '#fff' : '#6B6B6B',
-                  boxShadow: mode === m ? '0 2px 8px rgba(26,58,10,0.2)' : 'none',
-                }}
-              >
+              <button key={m} onClick={() => switchMode(m)} disabled={isAnyLoading} style={{
+                flex: 1, padding: '7px 0', borderRadius: 7, border: 'none',
+                fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13,
+                cursor: isAnyLoading ? 'default' : 'pointer',
+                transition: 'opacity 0.16s ease',
+                background: mode === m ? EXACT_AUTH_GREEN : 'transparent',
+                color: mode === m ? '#fff' : '#6B6B6B',
+                boxShadow: mode === m ? '0 2px 8px rgba(1, 20, 16, 0.25)' : 'none',
+              }}>
                 {m === 'login' ? 'Sign In' : 'Register'}
               </button>
             ))}
           </div>
 
           {/* Heading */}
-          <h2 style={{ fontSize: 21, fontWeight: 700, color: '#1C1C1E', marginBottom: 6, letterSpacing: '-0.3px' }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700, color: '#1C1C1E', marginBottom: 4, letterSpacing: '-0.3px' }}>
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
-          <p style={{ fontSize: 13.5, color: '#6B6B6B', marginBottom: 26 }}>
-            {mode === 'login'
-              ? 'Enter your credentials to continue'
-              : 'Join thousands of citizens improving their city'}
+          <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
+            {mode === 'login' ? 'Enter your credentials to continue' : 'Join thousands of citizens improving their city'}
           </p>
+
+          {/* Lockout banner */}
+          {isLocked && <LockoutBanner secondsLeft={secondsLeft} />}
 
           {/* Google OAuth */}
           <button
             type="button"
+            id="google-signin-btn"
             onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
+            disabled={isAnyLoading || isLocked}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              padding: '10px 18px', borderRadius: 9,
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+              padding: '9px 16px', borderRadius: 8,
               border: '1.5px solid #E8E5DE', background: '#FAFAF7',
-              cursor: 'pointer', fontSize: 13.5, fontWeight: 500,
+              cursor: (isAnyLoading || isLocked) ? 'not-allowed' : 'pointer',
+              fontSize: 13, fontWeight: 500,
               fontFamily: "'Poppins', sans-serif", color: '#1C1C1E',
-              transition: 'all 0.16s ease', marginBottom: 18,
-              opacity: googleLoading || loading ? 0.55 : 1,
+              transition: 'border-color 0.16s ease', marginBottom: 14,
+              opacity: (isAnyLoading || isLocked) ? 0.5 : 1,
             }}
-            onMouseEnter={e => { if (!googleLoading && !loading) e.currentTarget.style.borderColor = '#D4D0C8'; }}
+            onMouseEnter={e => { if (!isAnyLoading && !isLocked) e.currentTarget.style.borderColor = EXACT_AUTH_GREEN; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8E5DE'; }}
           >
-            {googleLoading ? (
-              <div style={{ width: 17, height: 17, borderRadius: '50%', border: '2px solid #E8E5DE', borderTopColor: '#011410', animation: 'spin 0.7s linear infinite' }} />
-            ) : <GoogleIcon />}
-            {googleLoading ? 'Signing in...' : 'Continue with Google'}
+            {googleLoading ? <Spinner size={16} /> : <GoogleIcon />}
+            {googleLoading ? 'Connecting to Google…' : 'Continue with Google'}
           </button>
 
           {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, height: 1, background: '#E8E5DE' }} />
-            <span style={{ fontSize: 12, color: '#6B6B6B', fontWeight: 500 }}>or continue with email</span>
+            <span style={{ fontSize: 11.5, color: '#6B6B6B', fontWeight: 500 }}>or continue with email</span>
             <div style={{ flex: 1, height: 1, background: '#E8E5DE' }} />
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+
+            {/* Name — signup only */}
             {mode === 'signup' && (
               <div>
-                <label className="label">Full Name</label>
+                <label className="label" htmlFor="auth-name" style={{ fontSize: 12, marginBottom: 4 }}>Full Name</label>
                 <div style={{ position: 'relative' }}>
-                  <User size={14} style={{
-                    position: 'absolute', left: 12, top: '50%',
-                    transform: 'translateY(-50%)', color: '#6B6B6B',
-                  }} />
+                  <User size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                   <input
+                    id="auth-name"
                     className="input"
                     type="text"
-                    placeholder="John Doe"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    style={{ paddingLeft: 34 }}
-                    required
+                    onChange={e => setName(e.target.value)}
+                    style={{ paddingLeft: 32, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                    disabled={isAnyLoading || isLocked}
+                    autoComplete="name"
+                    autoFocus
                   />
                 </div>
               </div>
             )}
 
+            {/* Email */}
             <div>
-              <label className="label">Email address</label>
+              <label className="label" htmlFor="auth-email" style={{ fontSize: 12, marginBottom: 4 }}>Email address</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={14} style={{
-                  position: 'absolute', left: 12, top: '50%',
-                  transform: 'translateY(-50%)', color: '#6B6B6B',
-                }} />
+                <Mail size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                 <input
+                  id="auth-email"
                   className="input"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="name@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ paddingLeft: 34 }}
-                  required
+                  onChange={e => setEmail(e.target.value)}
+                  style={{ paddingLeft: 32, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                  disabled={isAnyLoading || isLocked}
+                  autoComplete="email"
+                  autoFocus={mode === 'login'}
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
-              <label className="label">Password</label>
+              <label className="label" htmlFor="auth-password" style={{ fontSize: 12, marginBottom: 4 }}>Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={14} style={{
-                  position: 'absolute', left: 12, top: '50%',
-                  transform: 'translateY(-50%)', color: '#6B6B6B',
-                }} />
+                <Lock size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                 <input
+                  id="auth-password"
                   className="input"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingLeft: 34, paddingRight: 40 }}
-                  required
-                  minLength={6}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{ paddingLeft: 32, paddingRight: 36, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                  minLength={MIN_PW_LENGTH}
+                  disabled={isAnyLoading || isLocked}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword(v => !v)}
+                  tabIndex={-1}
                   style={{
-                    position: 'absolute', right: 11, top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#6B6B6B', display: 'flex',
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', color: '#6B6B6B', display: 'flex',
                   }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
+              {mode === 'signup' && <StrengthBar password={password} />}
             </div>
 
+            {/* Remember me — login only */}
+            {mode === 'login' && (
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                cursor: 'pointer', userSelect: 'none', marginTop: -2,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: EXACT_AUTH_GREEN, cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 12.5, color: '#6B6B6B' }}>Keep me signed in</span>
+              </label>
+            )}
+
+            {/* Submit — EXACT #011410 green throughout with NO color change on hover */}
             <button
+              id="auth-submit-btn"
               type="submit"
+              disabled={isAnyLoading || isLocked}
               style={{
-                marginTop: 4, width: '100%',
+                marginTop: 2, width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 8, padding: '12px 20px',
-                background: '#011410', color: '#fff',
-                border: '1.5px solid #011410', borderRadius: 9,
+                gap: 8, padding: '10px 18px',
+                background: EXACT_AUTH_GREEN, color: '#fff',
+                border: `1.5px solid ${EXACT_AUTH_GREEN}`, borderRadius: 8,
                 fontFamily: "'Poppins', sans-serif",
-                fontWeight: 600, fontSize: 14, cursor: 'pointer',
-                transition: 'all 0.16s ease',
-                opacity: loading || googleLoading ? 0.6 : 1,
+                fontWeight: 600, fontSize: 13.5,
+                cursor: (isAnyLoading || isLocked) ? 'not-allowed' : 'pointer',
+                transition: 'opacity 0.16s ease, transform 0.16s ease',
+                boxShadow: '0 2px 10px rgba(1, 20, 16, 0.28)',
+                opacity: (isAnyLoading || isLocked) ? 0.6 : 1,
               }}
-              disabled={loading || googleLoading}
-              onMouseEnter={e => { if (!loading && !googleLoading) e.currentTarget.style.background = '#000806'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#011410'; }}
+              onMouseEnter={e => { if (!isAnyLoading && !isLocked) e.currentTarget.style.opacity = '0.9'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
             >
-              {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              {loading ? (
+                <>
+                  <Spinner size={14} light />
+                  {mode === 'signup' ? 'Creating account…' : 'Signing in…'}
+                </>
+              ) : (
+                mode === 'login' ? 'Sign In' : 'Create Account'
+              )}
             </button>
           </form>
 
-          <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: '#6B6B6B' }}>
+          {/* Attempts warning (non-locked) */}
+          {!isLocked && attempts > 0 && attempts < MAX_ATTEMPTS && (
+            <p style={{ marginTop: 8, textAlign: 'center', fontSize: 11.5, color: '#DC2626' }}>
+              {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts === 1 ? '' : 's'} remaining
+            </p>
+          )}
+
+          {/* Switch mode */}
+          <p style={{ marginTop: 14, textAlign: 'center', fontSize: 12.5, color: '#6B6B6B' }}>
             {mode === 'login' ? (
               <>Don&apos;t have an account?{' '}
-                <button onClick={() => setMode('signup')} style={{ color: '#011410', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 13 }}>
+                <button id="switch-to-signup" onClick={() => switchMode('signup')} style={{ color: EXACT_AUTH_GREEN, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 12.5 }}>
                   Sign up
                 </button>
               </>
             ) : (
               <>Already have an account?{' '}
-                <button onClick={() => setMode('login')} style={{ color: '#011410', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 13 }}>
+                <button id="switch-to-login" onClick={() => switchMode('login')} style={{ color: EXACT_AUTH_GREEN, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 12.5 }}>
                   Sign in
                 </button>
               </>
             )}
           </p>
+
         </div>
       </div>
 
-      {/* Responsive: hide left panel + show mobile logo on small screens */}
       <style>{`
         @media (max-width: 768px) {
-          .auth-left-panel { display: none !important; }
+          .auth-left-panel  { display: none !important; }
           .auth-mobile-logo { display: flex !important; }
+          .auth-root-container { overflow-y: auto !important; height: auto !important; min-height: 100vh !important; }
+          .auth-right-panel { height: auto !important; min-height: 100vh !important; padding: 32px 20px !important; }
         }
       `}</style>
     </div>

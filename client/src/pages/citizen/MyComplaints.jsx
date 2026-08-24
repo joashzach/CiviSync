@@ -56,22 +56,24 @@ export default function MyComplaints() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 22, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {FILTERS.map((f) => (
           <button
             key={f}
             onClick={() => handleFilterChange(f)}
             style={{
-              padding: '6px 14px',
-              borderRadius: 7,
+              padding: '7px 16px',
+              borderRadius: 100,
               border: '1.5px solid',
               fontFamily: "'Poppins', sans-serif",
-              fontSize: 12.5, fontWeight: 500,
+              fontSize: 13,
+              fontWeight: 600,
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              background: filter === f ? '#011410' : '#FAFAF7',
-              color: filter === f ? '#fff' : '#3A3A3C',
-              borderColor: filter === f ? '#011410' : '#E8E5DE',
+              transition: 'all 0.18s ease',
+              background: filter === f ? '#011410' : '#FFFFFF',
+              color: filter === f ? '#FFFFFF' : '#4B5563',
+              borderColor: filter === f ? '#011410' : '#E5EFEB',
+              boxShadow: filter === f ? '0 2px 8px rgba(1, 20, 16, 0.2)' : 'none',
             }}
           >
             {f}
@@ -81,33 +83,39 @@ export default function MyComplaints() {
 
       {/* Grid */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton" style={{ height: 260, borderRadius: 14 }} />
+            <div key={i} className="skeleton" style={{ height: 260, borderRadius: 18 }} />
           ))}
         </div>
       ) : complaints.length === 0 ? (
-        <div className="card" style={{ padding: 60, textAlign: 'center' }}>
+        <div className="card" style={{ padding: 60, textAlign: 'center', borderRadius: 18, background: '#fff' }}>
           <div style={{
-            width: 52, height: 52, borderRadius: 14, background: '#DFF0D8',
+            width: 54, height: 54, borderRadius: 16, background: '#EAF1F8',
             display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
           }}>
-            <FileText size={24} color="#011410" />
+            <FileText size={24} color="#3B6B99" />
           </div>
-          <p style={{ color: '#1C1C1E', fontWeight: 600, marginBottom: 6, fontSize: 15 }}>
-            No complaints found
+          <p style={{ color: '#111827', fontWeight: 700, marginBottom: 6, fontSize: 16 }}>
+            No reports found
           </p>
-          <p style={{ color: '#6B6B6B', fontSize: 13 }}>
-            {filter !== 'All' ? `No ${filter} complaints.` : 'Start by reporting your first issue.'}
+          <p style={{ color: '#64748B', fontSize: 13.5 }}>
+            {filter !== 'All' ? `No ${filter.toLowerCase()} complaints found in your records.` : 'You haven\'t submitted any complaints yet.'}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
           {complaints.map((c) => (
             <div
               key={c._id}
               className="card card-hover"
-              style={{ cursor: 'pointer', overflow: 'hidden' }}
+              style={{
+                cursor: 'pointer',
+                overflow: 'hidden',
+                borderRadius: 18,
+                background: '#FFFFFF',
+                border: '1px solid #E5EFEB',
+              }}
               onClick={() => setSelectedId(c._id)}
             >
               {/* Image */}
@@ -115,32 +123,32 @@ export default function MyComplaints() {
                 <img
                   src={c.image_url}
                   alt={c.title}
-                  style={{ width: '100%', height: 160, objectFit: 'cover', borderBottom: '1px solid #E8E5DE' }}
+                  style={{ width: '100%', height: 210, objectFit: 'cover', borderBottom: '1px solid #E5EFEB' }}
                 />
               ) : (
                 <div style={{
-                  height: 160, background: '#E8EDDA',
+                  height: 180, background: '#E8F2EF',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderBottom: '1px solid #E8E5DE',
+                  borderBottom: '1px solid #E5EFEB',
                 }}>
-                  <ImageIcon size={28} color="#4A7A44" />
+                  <ImageIcon size={32} color="#5A8F8B" />
                 </div>
               )}
 
-              <div style={{ padding: '14px 16px' }}>
+              <div style={{ padding: '16px 18px' }}>
                 {/* Badges */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 9, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <span className={getStatusBadgeClass(c.status)}>{c.status}</span>
                   <span className={getSeverityBadgeClass(c.severity)}>{c.severity}</span>
                 </div>
 
-                <h3 style={{ fontSize: 13.5, fontWeight: 600, color: '#1C1C1E', marginBottom: 4, letterSpacing: '-0.1px' }}>
-                  {truncate(c.title, 55)}
+                <h3 style={{ fontSize: 14.5, fontWeight: 700, color: '#111827', marginBottom: 4, letterSpacing: '-0.2px' }}>
+                  {truncate(c.title, 45)}
                 </h3>
-                <p style={{ fontSize: 12, color: '#6B6B6B' }}>{c.category}</p>
+                <p style={{ fontSize: 12.5, fontWeight: 600, color: '#4B5563', marginBottom: 10 }}>{c.category || c.department || 'Civic Issue'}</p>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DE' }}>
-                  <p style={{ fontSize: 11.5, color: '#6B6B6B' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid #F0F4F2' }}>
+                  <p style={{ fontSize: 11.5, color: '#64748B' }}>
                     {format(new Date(c.created_at), 'dd MMM yyyy')}
                   </p>
                   <button
@@ -149,12 +157,12 @@ export default function MyComplaints() {
                     title="Delete complaint"
                     style={{
                       background: 'transparent', border: 'none',
-                      color: '#6B6B6B', cursor: 'pointer', padding: 4,
+                      color: '#94A3B8', cursor: 'pointer', padding: 5,
                       borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       transition: 'color 0.15s, background 0.15s',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = '#9B3B3B'; e.currentTarget.style.background = '#F9ECEC'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#6B6B6B'; e.currentTarget.style.background = 'transparent'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#C24A35'; e.currentTarget.style.background = '#FDEEE9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; e.currentTarget.style.background = 'transparent'; }}
                   >
                     <Trash2 size={13} />
                   </button>

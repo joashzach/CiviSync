@@ -2,35 +2,35 @@
 
 :root {
   /* ── Core Palette ──────────────────────────────────────────────────────── */
-  --charcoal:          #1C1C1E;
-  --graphite:          #3A3A3C;
-  --stone:             #6B6B6B;
-  --warm-ivory:        #F7F5F0;
-  --warm-white:        #FAFAF7;
-  --border:            #E8E5DE;
-  --border-strong:     #D4D0C8;
+  --charcoal:          #161E1D;
+  --graphite:          #374151;
+  --stone:             #64748B;
+  --warm-ivory:        #F4F8F7;
+  --warm-white:        #FFFFFF;
+  --border:            #E5EFEB;
+  --border-strong:     #D0DFDA;
 
   /* ── Accent Palette ────────────────────────────────────────────────────── */
-  --sage:              #4A7A44;
-  --sage-light:        #E5F2E2;
+  --sage:              #5A8F8B;
+  --sage-light:        #E4F0EE;
   --forest:            #011410;
-  --forest-hover:      #000806;
-  --forest-light:      #DFF0D8;
-  --olive:             #4A5A30;
-  --olive-light:       #E8EDDA;
-  --terracotta:        #C17D5A;
-  --terracotta-light:  #F7EDE6;
-  --terracotta-dark:   #9B5F3E;
+  --forest-hover:      #011410;
+  --forest-light:      #D8EAE3;
+  --olive:             #4A6B5D;
+  --olive-light:       #E6F0EC;
+  --terracotta:        #DE7D60;
+  --terracotta-light:  #FDEEE9;
+  --terracotta-dark:   #BA5D42;
 
   /* ── Semantic ──────────────────────────────────────────────────────────── */
-  --success:           #011410;
-  --success-light:     #E8F0E0;
-  --warning:           #C17D5A;
-  --warning-light:     #F7EDE6;
-  --danger:            #9B3B3B;
-  --danger-light:      #F9ECEC;
-  --info:              #6B7C4A;
-  --info-light:        #F0F3E8;
+  --success:           #2E9952;
+  --success-light:     #EAF6EE;
+  --warning:           #C2923A;
+  --warning-light:     #FBF4E4;
+  --danger:            #C24A35;
+  --danger-light:      #FDEEE9;
+  --info:              #3B6B99;
+  --info-light:        #EAF1F8;
 
   /* ── Aliases (backward-compat for components) ──────────────────────────── */
   --primary:           var(--forest);
@@ -45,10 +45,10 @@
   /* ── Layout ────────────────────────────────────────────────────────────── */
   --sidebar-width:     240px;
   --mobile-header-height: 56px;
-  --radius-sm:         6px;
-  --radius-md:         10px;
-  --radius-lg:         14px;
-  --radius-xl:         18px;
+  --radius-sm:         8px;
+  --radius-md:         12px;
+  --radius-lg:         18px;
+  --radius-xl:         22px;
 }
 
 /* ─── Reset ───────────────────────────────────────────────────────────────── */
@@ -81,15 +81,15 @@ body {
 .card {
   background: var(--warm-white);
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgba(28, 28, 30, 0.04), 0 0 0 1px var(--border);
+  box-shadow: 0 4px 20px -2px rgba(28, 48, 44, 0.04), 0 2px 6px -1px rgba(28, 48, 44, 0.02);
   border: 1px solid var(--border);
 }
 
 .card-hover {
-  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
 }
 .card-hover:hover {
-  box-shadow: 0 6px 24px rgba(28, 28, 30, 0.08), 0 0 0 1px var(--border-strong);
+  box-shadow: 0 10px 28px -4px rgba(28, 48, 44, 0.08), 0 2px 8px -1px rgba(28, 48, 44, 0.03);
   transform: translateY(-2px);
   border-color: var(--border-strong);
 }
@@ -119,14 +119,14 @@ body {
 }
 
 .btn-primary {
-  background: var(--forest);
+  background: #011410;
   color: #fff;
-  border-color: var(--forest);
+  border-color: #011410;
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--forest-hover);
-  border-color: var(--forest-hover);
-  box-shadow: 0 3px 10px rgba(45, 80, 22, 0.25);
+  background: #011410;
+  border-color: #011410;
+  box-shadow: 0 3px 10px rgba(1, 20, 16, 0.25);
   transform: translateY(-1px);
 }
 
@@ -180,44 +180,90 @@ body {
   font-weight: 600;
 }
 
+/* ─── Landing Navigation Buttons ─────────────────────────────────────────── */
+.landing-nav-btn-register {
+  background: #011410 !important;
+  color: #FFFFFF !important;
+  border: 1.5px solid #011410 !important;
+  border-radius: 9px;
+  padding: 8px 18px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 13.5px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.16s ease;
+  box-shadow: 0 2px 10px rgba(1, 20, 16, 0.28);
+}
+.landing-nav-btn-register:hover {
+  background: #011410 !important;
+  border-color: #011410 !important;
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(1, 20, 16, 0.35);
+}
+
+.landing-nav-btn-signin {
+  background: transparent;
+  color: #1C1C1E;
+  border: 1.5px solid #E8E5DE;
+  border-radius: 9px;
+  padding: 8px 18px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  font-size: 13.5px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.16s ease;
+}
+.landing-nav-btn-signin:hover {
+  border-color: #011410;
+  color: #011410;
+  background: #FAFAF7;
+}
+
 /* ─── Status Badges ───────────────────────────────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
-  border-radius: 100px;
+  padding: 3.5px 10px;
+  border-radius: 8px;
   font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: -0.1px;
 }
 
-.badge-pending   {
-  background: #FEF3C7;
-  color: #D97706;
-  border: 1px solid rgba(217, 119, 6, 0.25);
+.badge-pending {
+  background: #E6EDF2;
+  color: #476B85;
+  border: 1px solid rgba(71, 107, 133, 0.15);
 }
-.badge-assigned  {
-  background: #DBEAFE;
-  color: #2563EB;
-  border: 1px solid rgba(37, 99, 235, 0.25);
+.badge-assigned {
+  background: #EBF0FA;
+  color: #3861A7;
+  border: 1px solid rgba(56, 97, 167, 0.15);
 }
-.badge-progress  {
-  background: #EDE9FE;
-  color: #7C3AED;
-  border: 1px solid rgba(124, 58, 237, 0.25);
+.badge-progress {
+  background: #FDF0E7;
+  color: #C9662D;
+  border: 1px solid rgba(201, 102, 45, 0.15);
 }
-.badge-resolved  {
-  background: #DCFCE7;
-  color: #16A34A;
-  border: 1px solid rgba(22, 163, 74, 0.25);
+.badge-resolved {
+  background: #E8F5ED;
+  color: #288349;
+  border: 1px solid rgba(40, 131, 73, 0.15);
 }
 
 /* ─── Severity Badges ─────────────────────────────────────────────────────── */
-.badge-low      { background: var(--sage-light);       color: var(--sage);   border: 1px solid rgba(74,122,68,0.3); }
-.badge-medium   { background: var(--olive-light);      color: var(--olive);   border: 1px solid rgba(74,90,48,0.25); }
-.badge-high     { background: var(--terracotta-light); color: var(--terracotta); border: 1px solid rgba(193,125,90,0.25); }
-.badge-critical { background: var(--danger-light);     color: var(--danger);  border: 1px solid rgba(155,59,59,0.2); }
+.badge-low      { background: #EBF4EE; color: #387A4F; border: 1px solid rgba(56, 122, 79, 0.15); }
+.badge-medium   { background: #FEF5E7; color: #B57418; border: 1px solid rgba(181, 116, 24, 0.15); }
+.badge-high     { background: #FDEEE9; color: #C24A35; border: 1px solid rgba(194, 74, 53, 0.15); }
+.badge-critical { background: #FDEEE9; color: #C24A35; border: 1px solid rgba(194, 74, 53, 0.15); }
 
 /* ─── Form Inputs ─────────────────────────────────────────────────────────── */
 .input {
@@ -459,31 +505,42 @@ select.input {
 
 /* ─── Stat Cards ──────────────────────────────────────────────────────────── */
 .stat-card {
-  padding: 20px 22px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 116px;
+  background: var(--warm-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
 }
-.stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
+.stat-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1F2937;
+  letter-spacing: -0.1px;
+}
+.stat-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+.stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  color: #111827;
+  line-height: 1;
+}
+.stat-icon-wrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
-}
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--charcoal);
-  line-height: 1;
-}
-.stat-label {
-  font-size: 12px;
-  color: var(--stone);
-  margin-top: 5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  flex-shrink: 0;
 }
 
 /* ─── Data Table ──────────────────────────────────────────────────────────── */

@@ -2,29 +2,29 @@ import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  setPersistence,
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'demo-api-key',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'civisync-demo.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'civisync-demo',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'civisync-demo.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1234567890',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1234567890:web:abcdef',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
 
 export const googleProvider = new GoogleAuthProvider();
-// Ensure email is always included in the OAuth token
+// Include email and profile scopes
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
-// Prompt account selection so switching accounts works correctly
+// Always show the account chooser (important for multi-account users)
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// Re-export for use in AuthContext
-export { signInWithPopup, signInWithRedirect, getRedirectResult };
+// Re-export persistence utilities for use in AuthContext
+export { browserLocalPersistence, browserSessionPersistence, setPersistence };

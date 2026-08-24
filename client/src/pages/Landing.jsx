@@ -231,19 +231,6 @@ export default function Landing() {
               and submit. Municipal officials receive it instantly and track
               resolution in real time.
             </p>
-
-            {/* CTA buttons for mobile — hero level */}
-            <div className="hero-cta-mobile" style={{
-              display: 'none',
-              gap: 10, marginTop: 28, flexWrap: 'wrap',
-            }}>
-              <Link to="/auth" state={{ mode: 'signup' }} className="landing-nav-btn-register">
-                Register
-              </Link>
-              <Link to="/auth" state={{ mode: 'login' }} className="landing-nav-btn-signin">
-                Sign In
-              </Link>
-            </div>
           </div>
 
           {/* Right: City Image + floating card */}

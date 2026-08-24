@@ -4,6 +4,7 @@ import {
   LayoutDashboard, FilePlus, FileText, Map, LogOut, Menu, X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import AppBackgroundBlobs from '../components/AppBackgroundBlobs';
 import toast from 'react-hot-toast';
 
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
@@ -254,8 +255,11 @@ export default function CitizenLayout({ children }) {
       </aside>
 
       {/* Main Content */}
-      <main className="main-content">
-        {children}
+      <main className="main-content" style={{ position: 'relative' }}>
+        <AppBackgroundBlobs />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {children}
+        </div>
       </main>
 
       {/* Inline style to show close button on mobile */}

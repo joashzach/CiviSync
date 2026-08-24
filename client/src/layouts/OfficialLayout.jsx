@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Map, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import AppBackgroundBlobs from '../components/AppBackgroundBlobs';
 import toast from 'react-hot-toast';
 
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
@@ -249,7 +250,12 @@ export default function OfficialLayout({ children }) {
         </div>
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content" style={{ position: 'relative' }}>
+        <AppBackgroundBlobs />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {children}
+        </div>
+      </main>
 
       <style>{`
         @media (max-width: 768px) {

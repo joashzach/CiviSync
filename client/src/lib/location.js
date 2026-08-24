@@ -1,76 +1,122 @@
-/**
- * Utility to detect user's current location seamlessly.
- * 1. Primary: IP-based Geolocation (accurate to user's city/network IP).
- * 2. Secondary: Browser Geolocation.
- * 3. Silent — NO popups or toast notifications.
- */
-export async function getCurrentUserLocation() {
-  // First attempt IP location for fast city-level accuracy
-  const ipLoc = await getIpLocation();
-  if (ipLoc && ipLoc.lat && ipLoc.lng && (ipLoc.lat !== 12.9716 || ipLoc.lng !== 77.5946)) {
-    return ipLoc;
-  }
+const CACHE_KEY       = 'civisync_user_location';
+export const DEFAULT_LOC   = { lat: 13.0827, lng: 80.2707 };
+export const DEFAULT_CENTER = [13.0827, 80.2707];
 
-  // Fallback to browser geolocation if available
-  return new Promise((resolve) => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
-        () => resolve(ipLoc || { lat: 12.9716, lng: 77.5946 }),
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
-      );
-    } else {
-      resolve(ipLoc || { lat: 12.9716, lng: 77.5946 });
+// ── Cache & Sync helpers ──────────────────────────────────────────────────────
+
+/** Synchronously read a previously-saved location from localStorage */
+export function getCachedLocation() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
+        // Purge old stale IP lookup or Mumbai coordinates
+        if (
+          parsed.source === 'ip' ||
+          (parsed.lat >= 18.5 && parsed.lat <= 19.5 && parsed.lng >= 72.5 && parsed.lng <= 73.5)
+        ) {
+          localStorage.removeItem(CACHE_KEY);
+          return DEFAULT_LOC;
+        }
+        return parsed;
+      }
     }
-  });
+  } catch (_) {}
+  return DEFAULT_LOC;
 }
 
-export async function getIpLocation() {
-  // Provider 1: ipapi.co
+export function saveLocationToCache(loc) {
   try {
-    const res = await fetch('https://ipapi.co/json/');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
-        return { lat: data.latitude, lng: data.longitude, city: data.city, region: data.region };
-      }
+    if (loc?.lat && loc?.lng) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(loc));
+      broadcastLocation(loc);
     }
-  } catch (err) {
-    // Silent fail
+  } catch (_) {}
+}
+
+export function broadcastLocation(loc) {
+  try {
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('civisync:location_updated', { detail: loc }));
+    }
+  } catch (_) {}
+}
+
+/** Subscribe to live location changes across all active components/pages */
+export function subscribeToLocationUpdates(callback) {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleCustomEvent = (e) => {
+    if (e.detail && callback) callback(e.detail);
+  };
+
+  const handleStorageEvent = (e) => {
+    if (e.key === CACHE_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (parsed?.lat && parsed?.lng && callback) callback(parsed);
+      } catch (_) {}
+    }
+  };
+
+  window.addEventListener('civisync:location_updated', handleCustomEvent);
+  window.addEventListener('storage', handleStorageEvent);
+
+  return () => {
+    window.removeEventListener('civisync:location_updated', handleCustomEvent);
+    window.removeEventListener('storage', handleStorageEvent);
+  };
+}
+
+// ── Core Location Detection ───────────────────────────────────────────────────
+
+/**
+ * Accurately determines the user's actual location:
+ * 1. High-accuracy device GPS / Wi-Fi triangulation via browser geolocation (pinpoints exact coordinates).
+ * 2. Falls back to DEFAULT_LOC (Chennai: 13.0827, 80.2707) if geolocation is denied or unavailable.
+ *
+ * Saves to localStorage and broadcasts to all listening components so all maps stay 100% in sync.
+ */
+export async function getCurrentUserLocation(options = {}) {
+  const { forceGPS = false, timeout = 8000 } = options;
+
+  // 1. High-Accuracy Browser Geolocation (Primary)
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout,
+            maximumAge: forceGPS ? 0 : 30000,
+          }
+        );
+      });
+
+      if (position?.coords) {
+        const { latitude: lat, longitude: lng, accuracy } = position.coords;
+        const loc = {
+          lat,
+          lng,
+          accuracy: accuracy || null,
+          source: 'gps',
+          updatedAt: Date.now(),
+        };
+
+        saveLocationToCache(loc);
+        return loc;
+      }
+    } catch (gpsError) {
+      console.warn('[Location] GPS geolocation error or denied:', gpsError?.message || gpsError);
+    }
   }
 
-  // Provider 2: ip-api.com
-  try {
-    const res = await fetch('https://ip-api.com/json/');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data.lat === 'number' && typeof data.lon === 'number') {
-        return { lat: data.lat, lng: data.lon, city: data.city, region: data.regionName };
-      }
-    }
-  } catch (err) {
-    // Silent fail
-  }
-
-  // Provider 3: ipinfo.io
-  try {
-    const res = await fetch('https://ipinfo.io/json');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.loc) {
-        const [latStr, lngStr] = data.loc.split(',');
-        const lat = parseFloat(latStr);
-        const lng = parseFloat(lngStr);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          return { lat, lng, city: data.city, region: data.region };
-        }
-      }
-    }
-  } catch (err) {
-    // Silent fail
-  }
-
-  return { lat: 12.9716, lng: 77.5946 };
+  // 2. Fallback: Cached GPS location or Default Location (Chennai: 13.0827, 80.2707)
+  const cached = getCachedLocation();
+  const fallback = (cached?.lat && cached?.lng) ? cached : DEFAULT_LOC;
+  saveLocationToCache(fallback);
+  return fallback;
 }

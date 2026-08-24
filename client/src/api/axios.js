@@ -22,11 +22,12 @@ api.interceptors.request.use(async (config) => {
 });
 
 // Handle 401 responses: token may have expired mid-session.
-// Sign the user out so they're redirected to /auth gracefully.
+// Do not auto-signout during initial /auth/login calls.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const isLoginEndpoint = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginEndpoint) {
       try {
         // Force a fresh token and retry once before giving up
         const currentUser = auth.currentUser;
@@ -41,9 +42,11 @@ api.interceptors.response.use(
           }
         }
       } catch {
-        // Token refresh failed — sign out
-        await auth.signOut().catch(() => {});
-        window.location.href = '/auth';
+        // Token refresh failed — sign out only if not already on auth page
+        if (!window.location.pathname.startsWith('/auth')) {
+          await auth.signOut().catch(() => {});
+          window.location.href = '/auth';
+        }
       }
     }
     return Promise.reject(error);

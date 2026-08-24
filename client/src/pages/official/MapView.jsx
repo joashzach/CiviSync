@@ -4,13 +4,11 @@ import { MapPin, ThumbsUp } from 'lucide-react';
 import { getAllForMap } from '../../api/complaints';
 import { getMarkerColor, truncate } from '../../lib/utils';
 import ComplaintDrawer from '../../components/ComplaintDrawer';
-import { getCurrentUserLocation } from '../../lib/location';
+import { getCurrentUserLocation, getCachedLocation, subscribeToLocationUpdates, DEFAULT_CENTER } from '../../lib/location';
 import { useAuth } from '../../context/AuthContext';
 
 /** True when the device has a coarse primary pointer (touch screen) */
 const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
-
-const DEFAULT_CENTER = [12.9716, 77.5946];
 
 const STATUS_LEGEND = [
   { status: 'Pending',      color: '#D97706' },
@@ -22,7 +20,9 @@ const STATUS_LEGEND = [
 function FlyTo({ position }) {
   const map = useMap();
   useEffect(() => {
-    if (position) map.flyTo(position, map.getZoom(), { animate: true, duration: 1.2 });
+    if (position && position[0] && position[1]) {
+      map.flyTo(position, 14, { animate: true, duration: 1.2 });
+    }
   }, [position, map]);
   return null;
 }
@@ -32,7 +32,10 @@ export default function OfficialMapView() {
   const assignedDept = profile?.department || null;
 
   const [complaints, setComplaints] = useState([]);
-  const [center, setCenter]         = useState(DEFAULT_CENTER);
+  const [center, setCenter]         = useState(() => {
+    const c = getCachedLocation();
+    return c?.lat && c?.lng ? [c.lat, c.lng] : DEFAULT_CENTER;
+  });
   const [drawerOpen, setDrawerOpen] = useState(null);
 
   const fetchComplaints = () => {
@@ -44,6 +47,12 @@ export default function OfficialMapView() {
     getCurrentUserLocation()
       .then(loc => { if (loc?.lat && loc?.lng) setCenter([loc.lat, loc.lng]); })
       .catch(() => {});
+
+    const unsubscribe = subscribeToLocationUpdates((loc) => {
+      if (loc?.lat && loc?.lng) setCenter([loc.lat, loc.lng]);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   return (
