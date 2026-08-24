@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Map, LogOut } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Map, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -24,6 +25,24 @@ const navItems = [
 export default function OfficialLayout({ children }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarRef = useRef(null);
+
+  // Close sidebar on route change (mobile nav)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Lock body scroll when sidebar open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen]);
 
   const handleLogout = async () => {
     await signOut();
@@ -33,14 +52,52 @@ export default function OfficialLayout({ children }) {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      {/* ── Mobile Header ──────────────────────────────────────────────────── */}
+      <div className="mobile-header">
+        <button
+          className="hamburger"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="mobile-header-logo">
+          <CivicMark size={26} />
+          CiviSync
+        </div>
+        {/* Spacer to keep logo centered */}
+        <div style={{ width: 34 }} />
+      </div>
+
+      {/* ── Sidebar Overlay (mobile) ───────────────────────────────────────── */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      <aside className={`sidebar${sidebarOpen ? ' sidebar-open' : ''}`} ref={sidebarRef}>
         {/* Logo section */}
         <div className="sidebar-logo">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <CivicMark size={30} />
-            <span style={{ fontWeight: 700, fontSize: 15.5, color: '#1C1C1E', letterSpacing: '-0.2px' }}>
-              CiviSync
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <CivicMark size={30} />
+              <span style={{ fontWeight: 700, fontSize: 15.5, color: '#1C1C1E', letterSpacing: '-0.2px' }}>
+                CiviSync
+              </span>
+            </div>
+            <button
+              className="hamburger"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close navigation"
+              style={{ display: 'none' }}
+              id="official-sidebar-close-btn"
+            >
+              <X size={20} />
+            </button>
           </div>
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #E8E5DE' }}>
             <p style={{
@@ -93,6 +150,12 @@ export default function OfficialLayout({ children }) {
       </aside>
 
       <main className="main-content">{children}</main>
+
+      <style>{`
+        @media (max-width: 768px) {
+          #official-sidebar-close-btn { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }

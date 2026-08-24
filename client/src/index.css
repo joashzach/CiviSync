@@ -44,6 +44,7 @@
 
   /* ── Layout ────────────────────────────────────────────────────────────── */
   --sidebar-width:     240px;
+  --mobile-header-height: 56px;
   --radius-sm:         6px;
   --radius-md:         10px;
   --radius-lg:         14px;
@@ -275,7 +276,8 @@ select.input {
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 100;
+  z-index: 300;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-logo {
@@ -289,6 +291,7 @@ select.input {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
 }
 
 .nav-item {
@@ -326,6 +329,57 @@ select.input {
   overflow-y: auto;
   padding: 32px;
   background: var(--warm-ivory);
+}
+
+/* ─── Mobile Header (hamburger bar) ─────────────────────────────────────── */
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--mobile-header-height);
+  background: var(--warm-white);
+  border-bottom: 1px solid var(--border);
+  z-index: 200;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.mobile-header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--charcoal);
+  letter-spacing: -0.2px;
+}
+
+.hamburger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--charcoal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.hamburger:hover { background: var(--warm-ivory); }
+
+/* ─── Sidebar Overlay (mobile) ───────────────────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 28, 30, 0.45);
+  z-index: 299;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s ease;
 }
 
 /* ─── Leaflet overrides ───────────────────────────────────────────────────── */
@@ -549,7 +603,7 @@ select.input {
   position: fixed;
   inset: 0;
   background: rgba(28, 28, 30, 0.4);
-  z-index: 300;
+  z-index: 400;
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -671,10 +725,97 @@ select.input {
   box-shadow: 0 3px 10px rgba(45, 80, 22, 0.22);
 }
 
+/* Landing nav mobile menu toggle */
+.landing-mobile-menu-btn {
+  display: none;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--charcoal);
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.landing-mobile-menu-btn:hover {
+  background: var(--warm-ivory);
+  border-color: var(--charcoal);
+}
+.landing-mobile-menu-open {
+  display: none;
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  background: var(--warm-white);
+  border-bottom: 1px solid var(--border);
+  padding: 16px;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 99;
+}
+.landing-mobile-menu-open.active { display: flex; }
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .main-content { margin-left: 0; padding: 16px; }
+  /* Sidebar: hidden by default, shown when .sidebar-open is added */
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(28, 28, 30, 0.15);
+  }
+
+  /* Overlay: shown when sidebar is open */
+  .sidebar-overlay {
+    display: block;
+  }
+
+  /* Mobile header bar */
+  .mobile-header {
+    display: flex;
+  }
+
+  /* Main content: no sidebar margin, top padding for mobile header */
+  .main-content {
+    margin-left: 0;
+    padding: 16px;
+    padding-top: calc(var(--mobile-header-height) + 16px);
+    height: auto;
+    min-height: 100vh;
+  }
+
+  /* Drawers full-width on mobile */
   .drawer { width: 100vw; }
-  .modal-content { max-width: 100%; }
+  .drawer-overlay { z-index: 298; }
+
+  /* Modals: full-width with margin */
+  .modal-content { max-width: calc(100vw - 32px); }
+  .modal-overlay { padding: 16px; }
+
+  /* Data table: allow horizontal scroll */
+  .data-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+  }
+
+  /* Stat cards: reduce padding */
+  .stat-card { padding: 16px; }
+  .stat-value { font-size: 22px; }
+
+  /* Page header */
+  .page-header { margin-bottom: 18px; }
+  .page-title { font-size: 18px; }
+}
+
+@media (max-width: 480px) {
+  .main-content { padding: 12px; padding-top: calc(var(--mobile-header-height) + 12px); }
+  .drawer-body { padding: 16px; }
+  .drawer-header { padding: 14px 16px; }
 }

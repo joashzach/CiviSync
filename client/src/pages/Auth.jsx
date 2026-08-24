@@ -47,7 +47,7 @@ export default function Auth() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       const destination = profile?.role === 'official' ? '/official' : '/citizen';
       navigate(destination, { replace: true });
     }
@@ -60,10 +60,8 @@ export default function Auth() {
     try {
       if (mode === 'signup') {
         await signUpWithEmail(email, password);
-        // Welcome toast is shown by AuthContext after profile resolves
       } else {
         await signInWithEmail(email, password);
-        // Welcome toast is shown by AuthContext after profile resolves
       }
     } catch (err) {
       toast.error(err.message || 'Authentication failed');
@@ -76,15 +74,13 @@ export default function Auth() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      // Toast is intentionally omitted here — navigation happens via the
-      // useEffect watching `user`, which fires after onAuthStateChanged resolves.
+      // On mobile, signInWithGoogle uses redirect — page navigates away,
+      // so setGoogleLoading(false) may not fire. That's OK.
     } catch (err) {
-      // Ignore expected user-cancellation errors
       const ignoredCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
       if (!ignoredCodes.includes(err.code)) {
         toast.error(err.message || 'Google sign-in failed');
       }
-    } finally {
       setGoogleLoading(false);
     }
   };
@@ -96,17 +92,20 @@ export default function Auth() {
       display: 'flex',
       fontFamily: "'Poppins', sans-serif",
     }}>
-      {/* ── Left Panel ─────────────────────────────────────────────────────── */}
-      <div style={{
-        width: '45%',
-        minHeight: '100vh',
-        background: '#011410',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '52px 48px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
+      {/* ── Left Panel — hidden on mobile via CSS ───────────────────────────── */}
+      <div
+        className="auth-left-panel"
+        style={{
+          width: '45%',
+          minHeight: '100vh',
+          background: '#011410',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 'clamp(32px, 5vw, 52px) clamp(24px, 4vw, 48px)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
         {/* Subtle texture pattern */}
         <div style={{
           position: 'absolute', inset: 0, opacity: 0.06,
@@ -129,7 +128,7 @@ export default function Auth() {
         {/* Hero content */}
         <div style={{ position: 'relative', marginTop: 'auto', marginBottom: 'auto', paddingTop: 48 }}>
           <h1 style={{
-            fontSize: 'clamp(28px, 3vw, 38px)',
+            fontSize: 'clamp(24px, 3vw, 38px)',
             fontWeight: 800, color: '#fff',
             lineHeight: 1.15, marginBottom: 18,
             letterSpacing: '-0.8px',
@@ -174,8 +173,10 @@ export default function Auth() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '40px 48px',
+        padding: 'clamp(24px, 5vw, 40px) clamp(16px, 5vw, 48px)',
         background: '#F7F5F0',
+        minHeight: '100vh',
+        overflowY: 'auto',
       }}>
         <div style={{ width: '100%', maxWidth: 400 }}>
 
@@ -191,6 +192,21 @@ export default function Auth() {
           >
             <ArrowLeft size={14} /> Back to home
           </a>
+
+          {/* Mobile logo — only shown when left panel is hidden */}
+          <div className="auth-mobile-logo" style={{
+            display: 'none',
+            alignItems: 'center', gap: 9, marginBottom: 28,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 9,
+              background: '#011410',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <CivicMark size={24} />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 16, color: '#1C1C1E' }}>CiviSync</span>
+          </div>
 
           {/* Mode toggle */}
           <div style={{
@@ -338,7 +354,7 @@ export default function Auth() {
 
           <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: '#6B6B6B' }}>
             {mode === 'login' ? (
-              <>Don't have an account?{' '}
+              <>Don&apos;t have an account?{' '}
                 <button onClick={() => setMode('signup')} style={{ color: '#011410', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 13 }}>
                   Sign up
                 </button>
@@ -353,6 +369,14 @@ export default function Auth() {
           </p>
         </div>
       </div>
+
+      {/* Responsive: hide left panel + show mobile logo on small screens */}
+      <style>{`
+        @media (max-width: 640px) {
+          .auth-left-panel { display: none !important; }
+          .auth-mobile-logo { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }
