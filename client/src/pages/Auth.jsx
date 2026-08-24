@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { auth } from '../lib/firebase';
-import { getRedirectResult } from 'firebase/auth';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -46,37 +44,16 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { user, profile, freshSignIn, signOutSilently, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, profile, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
-  // On mount: clear any stale persisted session so the user must explicitly sign in.
-  // EXCEPT when returning from a Google redirect (mobile OAuth) — in that case we must
-  // NOT sign out or the redirect result is permanently lost.
+  // Redirect to respective dashboard as soon as user & profile are ready
   useEffect(() => {
-    const init = async () => {
-      try {
-        const redirectResult = await getRedirectResult(auth);
-        if (redirectResult?.user) {
-          // Returning from Google OAuth redirect — AuthContext will handle it via
-          // onAuthStateChanged. Do NOT sign out here.
-          return;
-        }
-      } catch (_) {
-        // Not a redirect return (or redirect failed) — safe to fall through.
-      }
-      // No pending redirect → clear any stale session so user picks account explicitly.
-      signOutSilently();
-    };
-    init();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Only redirect after an explicit, fresh sign-in (not a page-reload session restore)
-  useEffect(() => {
-    if (freshSignIn && user && profile) {
+    if (user && profile) {
       const destination = profile?.role === 'official' ? '/official' : '/citizen';
       navigate(destination, { replace: true });
     }
-  }, [freshSignIn, user, profile, navigate]);
+  }, [user, profile, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,8 +63,10 @@ export default function Auth() {
     try {
       if (mode === 'signup') {
         await signUpWithEmail(email, password, name.trim());
+        toast.success(`Welcome, ${name.trim()}!`);
       } else {
         await signInWithEmail(email, password);
+        toast.success('Signed in successfully!');
       }
     } catch (err) {
       toast.error(err.message || 'Authentication failed');
@@ -100,13 +79,13 @@ export default function Auth() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      // On mobile, signInWithGoogle uses redirect — page navigates away,
-      // so setGoogleLoading(false) may not fire. That's OK.
+      toast.success('Signed in with Google!');
     } catch (err) {
       const ignoredCodes = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
       if (!ignoredCodes.includes(err.code)) {
         toast.error(err.message || 'Google sign-in failed');
       }
+    } finally {
       setGoogleLoading(false);
     }
   };
