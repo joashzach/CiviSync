@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../lib/firebase';
+import { getRedirectResult } from 'firebase/auth';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, MapPin, Zap, Users, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -47,9 +49,25 @@ export default function Auth() {
   const { user, profile, freshSignIn, signOutSilently, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const navigate = useNavigate();
 
-  // Clear any persisted session on mount so the user must always explicitly sign in
+  // On mount: clear any stale persisted session so the user must explicitly sign in.
+  // EXCEPT when returning from a Google redirect (mobile OAuth) — in that case we must
+  // NOT sign out or the redirect result is permanently lost.
   useEffect(() => {
-    signOutSilently();
+    const init = async () => {
+      try {
+        const redirectResult = await getRedirectResult(auth);
+        if (redirectResult?.user) {
+          // Returning from Google OAuth redirect — AuthContext will handle it via
+          // onAuthStateChanged. Do NOT sign out here.
+          return;
+        }
+      } catch (_) {
+        // Not a redirect return (or redirect failed) — safe to fall through.
+      }
+      // No pending redirect → clear any stale session so user picks account explicitly.
+      signOutSilently();
+    };
+    init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only redirect after an explicit, fresh sign-in (not a page-reload session restore)
@@ -204,16 +222,23 @@ export default function Auth() {
           {/* Mobile logo — only shown when left panel is hidden */}
           <div className="auth-mobile-logo" style={{
             display: 'none',
-            alignItems: 'center', gap: 9, marginBottom: 28,
+            alignItems: 'center', gap: 10, marginBottom: 28,
           }}>
             <div style={{
-              width: 36, height: 36, borderRadius: 9,
+              width: 38, height: 38, borderRadius: 10,
               background: '#011410',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <CivicMark size={24} />
+              {/* White version of CivicMark for dark bg */}
+              <svg width={22} height={22} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" fill="#fff" opacity="0.2" />
+                <path d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" fill="none" />
+                <path d="M18 10c-1.5 2.5-4 3.8-4 3.8s0 4.7 4 8.2c4-3.5 4-8.2 4-8.2S19.5 12.5 18 10z" fill="#fff" opacity="0.9" />
+                <path d="M14 20.5c1.2.8 2.6 1.5 4 2.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+                <path d="M22 20.5c-1.2.8-2.6 1.5-4 2.5" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+              </svg>
             </div>
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#1C1C1E' }}>CiviSync</span>
+            <span style={{ fontWeight: 700, fontSize: 16, color: '#1C1C1E', letterSpacing: '-0.2px' }}>CiviSync</span>
           </div>
 
           {/* Mode toggle */}
@@ -401,7 +426,7 @@ export default function Auth() {
 
       {/* Responsive: hide left panel + show mobile logo on small screens */}
       <style>{`
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
           .auth-left-panel { display: none !important; }
           .auth-mobile-logo { display: flex !important; }
         }

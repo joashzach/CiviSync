@@ -95,11 +95,15 @@ export function AuthProvider({ children }) {
     let unsubscribe;
 
     const init = async () => {
-      // Handle redirect-based OAuth result (fires after mobile Google redirect returns)
+      // Handle redirect-based OAuth result (fires after mobile Google redirect returns).
+      // Mark _isRestoringSession = false BEFORE onAuthStateChanged fires so that
+      // resolveProfile treats this as a brand-new sign-in (sets freshSignIn, shows toast).
       try {
         const result = await getRedirectResult(auth);
         if (result?.user) {
           console.log('OAuth redirect sign-in completed for:', result.user.email);
+          // The redirect returned a real user — this is a fresh sign-in, not a restore.
+          _isRestoringSession = false;
         }
       } catch (err) {
         // Only report non-cancellation errors
