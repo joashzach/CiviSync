@@ -131,15 +131,37 @@ export default function Auth() {
   const [secondsLeft,  setSecondsLeft]  = useState(0);
   const lockTimerRef = useRef(null);
 
-  const { user, profile, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const {
+    user,
+    profile,
+    loading: authLoading,
+    redirectError,
+    setRedirectError,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+  } = useAuth();
   const navigate = useNavigate();
 
-  // ── Redirect on auth ──────────────────────────────────────────────────────
+  // ── Handle OAuth redirect errors (from mobile or fallback redirects) ──────
   useEffect(() => {
-    if (user) {
-      navigate(profile?.role === 'official' ? '/official' : '/citizen', { replace: true });
+    if (redirectError) {
+      const msg = getFirebaseErrorMessage(redirectError);
+      if (msg) toast.error(msg);
+      if (redirectError.code === 'auth/account-already-registered') {
+        setMode('login');
+      }
+      setRedirectError(null);
     }
-  }, [user, profile, navigate]);
+  }, [redirectError, setRedirectError]);
+
+  // ── Redirect on complete authentication & profile resolution ──────────────
+  useEffect(() => {
+    if (user && profile && !authLoading) {
+      const target = profile.role === 'official' ? '/official' : '/citizen';
+      navigate(target, { replace: true });
+    }
+  }, [user, profile, authLoading, navigate]);
 
   // ── Lockout countdown timer ───────────────────────────────────────────────
   useEffect(() => {
@@ -161,7 +183,7 @@ export default function Auth() {
   }, [lockedUntil]);
 
   const isLocked    = !!lockedUntil && Date.now() < lockedUntil;
-  const isAnyLoading = loading || googleLoading;
+  const isAnyLoading = loading || googleLoading || (authLoading && !!user);
 
   // ── Mode switch ───────────────────────────────────────────────────────────
   const switchMode = (m) => {
@@ -246,17 +268,10 @@ export default function Auth() {
     }
   };
 
-  // ── Google sign-in (Popup) ────────────────────────────────────────────────
+  // ── Google sign-in (Mobile redirect + Desktop popup fallback) ─────────────
   const handleGoogleSignIn = async () => {
     if (isLocked || isAnyLoading) return;
     setGoogleLoading(true);
-
-    const onWindowRefocus = () => {
-      setTimeout(() => {
-        setGoogleLoading(false);
-      }, 400);
-    };
-    window.addEventListener('focus', onWindowRefocus, { once: true });
 
     try {
       await signInWithGoogle(rememberMe, mode);
@@ -269,23 +284,27 @@ export default function Auth() {
         }
       }
     } finally {
-      window.removeEventListener('focus', onWindowRefocus);
       setGoogleLoading(false);
     }
   };
 
-  if (user) {
+  if (user && !profile) {
     return (
       <div style={{
         height: '100vh',
         width: '100vw',
         background: '#F7F5F0',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 12,
         fontFamily: "'Poppins', sans-serif",
       }}>
         <Spinner size={32} />
+        <span style={{ fontSize: 13, color: '#6B6B6B', fontWeight: 500 }}>
+          Authenticating profile…
+        </span>
       </div>
     );
   }
@@ -299,7 +318,7 @@ export default function Auth() {
       fontFamily: "'Poppins', sans-serif",
       overflow: 'hidden',
     }}>
-      {/* ── Left branding panel (100% Static on both Sign In & Register) ──── */}
+      {/* ── Left branding panel (Desktop only) ────────────────────────────── */}
       <div className="auth-left-panel" style={{
         width: '45%',
         height: '100vh',
@@ -360,11 +379,11 @@ export default function Auth() {
           </div>
         </div>
 
-        {/* Bottom space placeholder to keep static alignment */}
+        {/* Bottom space placeholder */}
         <div style={{ height: 16 }} />
       </div>
 
-      {/* ── Right form panel (Fixed viewport, zero scroll on desktop) ────── */}
+      {/* ── Right form panel (Optimized for desktop & mobile) ─────────────── */}
       <div className="auth-right-panel" style={{
         flex: 1,
         height: '100vh',
@@ -381,20 +400,21 @@ export default function Auth() {
           {/* Back link */}
           <a href="/" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            color: '#6B6B6B', fontSize: 12.5, textDecoration: 'none',
+            color: '#6B6B6B', fontSize: 13, textDecoration: 'none',
             marginBottom: 20, fontWeight: 500, transition: 'color 0.15s',
+            minHeight: 36,
           }}
           onMouseEnter={e => { e.currentTarget.style.color = EXACT_AUTH_GREEN; }}
           onMouseLeave={e => { e.currentTarget.style.color = '#6B6B6B'; }}>
-            <ArrowLeft size={13} /> Back to home
+            <ArrowLeft size={14} /> Back to home
           </a>
 
-          {/* Mobile logo (hidden on desktop) */}
+          {/* Mobile logo (visible on mobile only) */}
           <div className="auth-mobile-logo" style={{ display: 'none', alignItems: 'center', gap: 9, marginBottom: 20 }}>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: EXACT_AUTH_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CivicMark size={20} stroke="#fff" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#1C1C1E', letterSpacing: '-0.2px' }}>CiviSync</span>
+            <span style={{ fontWeight: 700, fontSize: 16.5, color: '#1C1C1E', letterSpacing: '-0.2px' }}>CiviSync</span>
           </div>
 
           {/* Mode toggle */}
@@ -405,13 +425,15 @@ export default function Auth() {
           }}>
             {['login', 'signup'].map(m => (
               <button key={m} onClick={() => switchMode(m)} disabled={isAnyLoading} style={{
-                flex: 1, padding: '7px 0', borderRadius: 7, border: 'none',
+                flex: 1, padding: '9px 0', borderRadius: 7, border: 'none',
                 fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13,
                 cursor: isAnyLoading ? 'default' : 'pointer',
                 transition: 'opacity 0.16s ease',
                 background: mode === m ? EXACT_AUTH_GREEN : 'transparent',
                 color: mode === m ? '#fff' : '#6B6B6B',
                 boxShadow: mode === m ? '0 2px 8px rgba(1, 20, 16, 0.25)' : 'none',
+                minHeight: 40,
+                touchAction: 'manipulation',
               }}>
                 {m === 'login' ? 'Sign In' : 'Register'}
               </button>
@@ -419,7 +441,7 @@ export default function Auth() {
           </div>
 
           {/* Heading */}
-          <h2 style={{ fontSize: 19, fontWeight: 700, color: '#1C1C1E', marginBottom: 4, letterSpacing: '-0.3px' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1C1C1E', marginBottom: 4, letterSpacing: '-0.3px' }}>
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
           <p style={{ fontSize: 13, color: '#6B6B6B', marginBottom: 16 }}>
@@ -437,13 +459,15 @@ export default function Auth() {
             disabled={isAnyLoading || isLocked}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-              padding: '9px 16px', borderRadius: 8,
+              padding: '11px 16px', borderRadius: 8,
               border: '1.5px solid #E8E5DE', background: '#FAFAF7',
               cursor: (isAnyLoading || isLocked) ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 500,
+              fontSize: 13.5, fontWeight: 500,
               fontFamily: "'Poppins', sans-serif", color: '#1C1C1E',
               transition: 'border-color 0.16s ease', marginBottom: 14,
               opacity: (isAnyLoading || isLocked) ? 0.5 : 1,
+              minHeight: 44,
+              touchAction: 'manipulation',
             }}
             onMouseEnter={e => { if (!isAnyLoading && !isLocked) e.currentTarget.style.borderColor = EXACT_AUTH_GREEN; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8E5DE'; }}
@@ -460,24 +484,27 @@ export default function Auth() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+          <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* Name — signup only */}
             {mode === 'signup' && (
               <div>
                 <label className="label" htmlFor="auth-name" style={{ fontSize: 12, marginBottom: 4 }}>Full Name</label>
                 <div style={{ position: 'relative' }}>
-                  <User size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
+                  <User size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                   <input
                     id="auth-name"
-                    className="input"
+                    className="input auth-input"
                     type="text"
+                    inputMode="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    style={{ paddingLeft: 32, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                    style={{ paddingLeft: 34, paddingBottom: 9, paddingTop: 9 }}
                     disabled={isAnyLoading || isLocked}
                     autoComplete="name"
-                    autoFocus
+                    autoCapitalize="words"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
               </div>
@@ -487,18 +514,21 @@ export default function Auth() {
             <div>
               <label className="label" htmlFor="auth-email" style={{ fontSize: 12, marginBottom: 4 }}>Email address</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
+                <Mail size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                 <input
                   id="auth-email"
-                  className="input"
+                  className="input auth-input"
                   type="email"
+                  inputMode="email"
                   placeholder="name@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  style={{ paddingLeft: 32, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                  style={{ paddingLeft: 34, paddingBottom: 9, paddingTop: 9 }}
                   disabled={isAnyLoading || isLocked}
                   autoComplete="email"
-                  autoFocus={mode === 'login'}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
@@ -507,30 +537,35 @@ export default function Auth() {
             <div>
               <label className="label" htmlFor="auth-password" style={{ fontSize: 12, marginBottom: 4 }}>Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
+                <Lock size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B6B6B' }} />
                 <input
                   id="auth-password"
-                  className="input"
+                  className="input auth-input"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  style={{ paddingLeft: 32, paddingRight: 36, paddingBottom: 7, paddingTop: 7, fontSize: 13 }}
+                  style={{ paddingLeft: 34, paddingRight: 40, paddingBottom: 9, paddingTop: 9 }}
                   minLength={MIN_PW_LENGTH}
                   disabled={isAnyLoading || isLocked}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
                   tabIndex={-1}
                   style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', color: '#6B6B6B', display: 'flex',
+                    position: 'absolute', right: 0, top: 0, bottom: 0, width: 40,
+                    background: 'none', border: 'none', cursor: 'pointer', color: '#6B6B6B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    touchAction: 'manipulation',
                   }}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
               {mode === 'signup' && <StrengthBar password={password} />}
@@ -539,43 +574,45 @@ export default function Auth() {
             {/* Remember me — login only */}
             {mode === 'login' && (
               <label style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                cursor: 'pointer', userSelect: 'none', marginTop: -2,
+                display: 'flex', alignItems: 'center', gap: 8,
+                cursor: 'pointer', userSelect: 'none', minHeight: 34,
+                touchAction: 'manipulation',
               }}>
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={e => setRememberMe(e.target.checked)}
-                  style={{ width: 14, height: 14, accentColor: EXACT_AUTH_GREEN, cursor: 'pointer' }}
+                  style={{ width: 16, height: 16, accentColor: EXACT_AUTH_GREEN, cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: 12.5, color: '#6B6B6B' }}>Keep me signed in</span>
+                <span style={{ fontSize: 13, color: '#6B6B6B' }}>Keep me signed in</span>
               </label>
             )}
 
-            {/* Submit — EXACT #011410 green throughout with NO color change on hover */}
+            {/* Submit */}
             <button
               id="auth-submit-btn"
               type="submit"
               disabled={isAnyLoading || isLocked}
               style={{
-                marginTop: 2, width: '100%',
+                marginTop: 4, width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 8, padding: '10px 18px',
+                gap: 8, padding: '11px 18px', minHeight: 44,
                 background: EXACT_AUTH_GREEN, color: '#fff',
                 border: `1.5px solid ${EXACT_AUTH_GREEN}`, borderRadius: 8,
                 fontFamily: "'Poppins', sans-serif",
-                fontWeight: 600, fontSize: 13.5,
+                fontWeight: 600, fontSize: 14,
                 cursor: (isAnyLoading || isLocked) ? 'not-allowed' : 'pointer',
                 transition: 'opacity 0.16s ease, transform 0.16s ease',
                 boxShadow: '0 2px 10px rgba(1, 20, 16, 0.28)',
                 opacity: (isAnyLoading || isLocked) ? 0.6 : 1,
+                touchAction: 'manipulation',
               }}
               onMouseEnter={e => { if (!isAnyLoading && !isLocked) e.currentTarget.style.opacity = '0.9'; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
             >
               {loading ? (
                 <>
-                  <Spinner size={14} light />
+                  <Spinner size={15} light />
                   {mode === 'signup' ? 'Creating account…' : 'Signing in…'}
                 </>
               ) : (
@@ -584,24 +621,40 @@ export default function Auth() {
             </button>
           </form>
 
-          {/* Attempts warning (non-locked) */}
+          {/* Attempts warning */}
           {!isLocked && attempts > 0 && attempts < MAX_ATTEMPTS && (
-            <p style={{ marginTop: 8, textAlign: 'center', fontSize: 11.5, color: '#DC2626' }}>
+            <p style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: '#DC2626' }}>
               {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts === 1 ? '' : 's'} remaining
             </p>
           )}
 
           {/* Switch mode */}
-          <p style={{ marginTop: 14, textAlign: 'center', fontSize: 12.5, color: '#6B6B6B' }}>
+          <p style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: '#6B6B6B' }}>
             {mode === 'login' ? (
               <>Don&apos;t have an account?{' '}
-                <button id="switch-to-signup" onClick={() => switchMode('signup')} style={{ color: EXACT_AUTH_GREEN, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 12.5 }}>
+                <button
+                  id="switch-to-signup"
+                  onClick={() => switchMode('signup')}
+                  style={{
+                    color: EXACT_AUTH_GREEN, background: 'none', border: 'none',
+                    cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif",
+                    fontSize: 13, touchAction: 'manipulation', padding: '4px 6px',
+                  }}
+                >
                   Sign up
                 </button>
               </>
             ) : (
               <>Already have an account?{' '}
-                <button id="switch-to-login" onClick={() => switchMode('login')} style={{ color: EXACT_AUTH_GREEN, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif", fontSize: 12.5 }}>
+                <button
+                  id="switch-to-login"
+                  onClick={() => switchMode('login')}
+                  style={{
+                    color: EXACT_AUTH_GREEN, background: 'none', border: 'none',
+                    cursor: 'pointer', fontWeight: 600, fontFamily: "'Poppins', sans-serif",
+                    fontSize: 13, touchAction: 'manipulation', padding: '4px 6px',
+                  }}
+                >
                   Sign in
                 </button>
               </>
@@ -613,12 +666,28 @@ export default function Auth() {
 
       <style>{`
         @media (max-width: 768px) {
-          .auth-left-panel  { display: none !important; }
+          .auth-left-panel { display: none !important; }
           .auth-mobile-logo { display: flex !important; }
-          .auth-root-container { overflow-y: auto !important; height: auto !important; min-height: 100vh !important; }
-          .auth-right-panel { height: auto !important; min-height: 100vh !important; padding: 32px 20px !important; }
+          .auth-root-container {
+            overflow-y: auto !important;
+            height: auto !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+          .auth-right-panel {
+            height: auto !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            padding: clamp(24px, 6vw, 36px) 20px !important;
+            justify-content: flex-start !important;
+          }
+          .auth-input, .input {
+            font-size: 16px !important;
+          }
         }
       `}</style>
     </div>
   );
 }
+

@@ -900,6 +900,11 @@ select.input {
     display: flex;
   }
 
+  /* Prevent iOS Safari auto-zoom on input focus */
+  input, select, textarea, .input {
+    font-size: 16px !important;
+  }
+
   /* Main content: no sidebar margin, top padding for mobile header */
   .main-content {
     margin-left: 0;

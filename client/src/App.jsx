@@ -20,7 +20,7 @@ import OfficialMapView from './pages/official/MapView';
 
 function RoleRedirect() {
   const { user, profile, loading } = useAuth();
-  if (loading) return <LoadingSpinner />;
+  if (loading || (user && !profile)) return <LoadingSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
   return <Navigate to={profile?.role === 'official' ? '/official' : '/citizen'} replace />;
 }
