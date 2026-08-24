@@ -8,14 +8,14 @@ import { getStats } from '../api/stats';
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 
 /* ── Civic Logo Mark ─────────────────────────────────────────────────────── */
-function CivicMark({ size = 32, dark = false }) {
-  const fill = dark ? '#011410' : '#011410';
+function CivicMark({ size = 32, light = false }) {
+  const fill = light ? '#FFFFFF' : '#011410';
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z"
         fill={fill}
-        opacity="0.12"
+        opacity={light ? '0.2' : '0.12'}
       />
       <path
         d="M18 2L4 8v10c0 8.4 5.9 16.3 14 18 8.1-1.7 14-9.6 14-18V8L18 2z"
@@ -27,7 +27,7 @@ function CivicMark({ size = 32, dark = false }) {
       <path
         d="M18 10c-1.5 2.5-4 3.8-4 3.8s0 4.7 4 8.2c4-3.5 4-8.2 4-8.2S19.5 12.5 18 10z"
         fill={fill}
-        opacity="0.8"
+        opacity={light ? '0.9' : '0.8'}
       />
       <path d="M14 20.5c1.2.8 2.6 1.5 4 2.5" stroke={fill} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
       <path d="M22 20.5c-1.2.8-2.6 1.5-4 2.5" stroke={fill} strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
@@ -238,7 +238,7 @@ export default function Landing() {
               gap: 10, marginTop: 28, flexWrap: 'wrap',
             }}>
               <Link to="/auth" state={{ mode: 'signup' }} className="landing-nav-btn-register">
-                Get Started
+                Register
               </Link>
               <Link to="/auth" state={{ mode: 'login' }} className="landing-nav-btn-signin">
                 Sign In
@@ -432,27 +432,9 @@ export default function Landing() {
             </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
-            gap: 1,
-            border: '1px solid #E8E5DE',
-            borderRadius: 16,
-            overflow: 'hidden',
-          }}>
+          <div className="features-grid">
             {FEATURES.map(({ icon, color, bg, title, desc }) => (
-              <div
-                key={title}
-                style={{
-                  padding: 'clamp(20px, 3vw, 28px)',
-                  background: '#FAFAF7',
-                  borderRight: '1px solid #E8E5DE',
-                  borderBottom: '1px solid #E8E5DE',
-                  transition: 'background 0.18s ease',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#F7F5F0'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#FAFAF7'; }}
-              >
+              <div key={title} className="feature-card">
                 <div style={{
                   width: 42, height: 42, borderRadius: 10,
                   background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -472,8 +454,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── CTA ────────────────────────────────────────────────────────────── */}
-      <section style={{
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer style={{
         background: '#011410',
         padding: 'clamp(48px, 8vw, 88px) clamp(16px, 4vw, 40px)',
         textAlign: 'center',
@@ -482,52 +464,10 @@ export default function Landing() {
           <h2 style={{ fontSize: 'clamp(22px, 4vw, 32px)', fontWeight: 800, color: '#fff', marginBottom: 14, letterSpacing: '-0.5px' }}>
             Ready to Improve Your City?
           </h2>
-          <p style={{ fontSize: 15.5, color: 'rgba(255,255,255,0.7)', marginBottom: 28, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 15.5, color: 'rgba(255,255,255,0.7)', margin: 0, lineHeight: 1.7 }}>
             Join your community in reporting and resolving civic issues. It takes under 60 seconds.
           </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link
-              to="/auth"
-              state={{ mode: 'signup' }}
-              style={{
-                background: '#fff', color: '#011410',
-                padding: '12px 28px', borderRadius: 10,
-                fontWeight: 700, fontSize: 14,
-                textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
-                transition: 'transform 0.15s, box-shadow 0.15s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.25)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              Get Started — It&apos;s Free
-            </Link>
-          </div>
         </div>
-      </section>
-
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <footer style={{
-        background: '#1C1C1E',
-        padding: 'clamp(20px, 3vw, 28px) clamp(16px, 4vw, 40px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CivicMark size={28} />
-          <span style={{ fontWeight: 700, color: '#F7F5F0', fontSize: 15 }}>CiviSync</span>
-        </div>
-        <p style={{ fontSize: 12.5, color: 'rgba(247,245,240,0.35)', fontWeight: 400 }}>
-          © 2025 CiviSync. Built for Smart India Hackathon.
-        </p>
       </footer>
 
       {/* Inline responsive styles for landing-page-specific elements */}

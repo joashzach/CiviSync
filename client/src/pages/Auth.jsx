@@ -161,7 +161,7 @@ export default function Auth() {
         {/* Bottom note */}
         <div style={{ position: 'relative', marginTop: 'auto' }}>
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-            © 2025 CiviSync. Smart India Hackathon.
+            © CiviSync
           </p>
         </div>
       </div>

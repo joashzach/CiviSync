@@ -760,6 +760,38 @@ select.input {
 }
 .landing-mobile-menu-open.active { display: flex; }
 
+/* ─── Features Grid ────────────────────────────────────────────────────── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: #E8E5DE;
+  border: 1px solid #E8E5DE;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.feature-card {
+  padding: clamp(20px, 3vw, 28px);
+  background: #FAFAF7;
+  transition: background 0.18s ease;
+}
+.feature-card:hover {
+  background: #F7F5F0;
+}
+
+@media (max-width: 900px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ─── Report Issue Grid ─────────────────────────────────────────────────── */
 .report-issue-grid {
   display: grid;
