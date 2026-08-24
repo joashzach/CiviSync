@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signOut as firebaseSignOut,
@@ -206,7 +206,9 @@ export function AuthProvider({ children }) {
   // Both desktop and mobile use popup-first. If the popup is blocked or killed
   // (the normal mobile browser behaviour), automatically fall back to redirect.
   const signInWithGoogle = async (rememberMe = true, expectedMode = null) => {
-    await safeSetPersistence(rememberMe);
+    // Set persistence asynchronously to keep the first call synchronously chained
+    // from the user's click gesture. Awaiting here causes mobile browsers to block the popup.
+    safeSetPersistence(rememberMe).catch((err) => console.warn('[Auth] safeSetPersistence error:', err));
     try { sessionStorage.setItem('civisync_auth_redirect_mode', expectedMode || 'login'); } catch (_) {}
 
     // All codes that mean "popup could not open or was dismissed"
