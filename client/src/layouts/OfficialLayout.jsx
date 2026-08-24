@@ -78,22 +78,33 @@ export default function OfficialLayout({ children }) {
           <CivicMark size={26} />
           CiviSync
         </div>
-        {photoURL && !imgError ? (
-          <img
-            src={photoURL}
-            alt={displayName}
-            referrerPolicy="no-referrer"
-            onError={() => setImgError(true)}
-            style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', border: '1px solid #E8E5DE' }}
-          />
-        ) : (
-          <div style={{
-            width: 30, height: 30, borderRadius: '50%', background: '#F7EDE6', color: '#C17D5A',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
-          }}>
-            {initials}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {photoURL && !imgError ? (
+            <img
+              src={photoURL}
+              alt={displayName}
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
+              style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', border: '1px solid #E8E5DE' }}
+            />
+          ) : (
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%', background: '#F7EDE6', color: '#C17D5A',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
+            }}>
+              {initials}
+            </div>
+          )}
+          <button
+            className="mobile-header-logout"
+            onClick={handleLogout}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogOut size={14} />
+            <span>Out</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Sidebar Overlay (mobile) ───────────────────────────────────────── */}

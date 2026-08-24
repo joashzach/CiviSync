@@ -83,6 +83,17 @@ export default function ComplaintDrawer({ complaintId, onClose, onUpdated }) {
     <>
       <div className="drawer-overlay" onClick={onClose} />
       <div className="drawer">
+        {/* Mobile drag handle */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', padding: '10px 0 4px',
+          flexShrink: 0,
+        }} className="drawer-handle-wrap">
+          <div style={{
+            width: 36, height: 4, borderRadius: 100,
+            background: 'var(--border-strong)',
+          }} />
+        </div>
+
         {/* Header */}
         <div className="drawer-header">
           <h2 style={{ fontSize: 15.5, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.2px' }}>

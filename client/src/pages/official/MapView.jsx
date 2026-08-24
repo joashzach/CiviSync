@@ -7,6 +7,9 @@ import ComplaintDrawer from '../../components/ComplaintDrawer';
 import { getCurrentUserLocation } from '../../lib/location';
 import { useAuth } from '../../context/AuthContext';
 
+/** True when the device has a coarse primary pointer (touch screen) */
+const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
+
 const DEFAULT_CENTER = [12.9716, 77.5946];
 
 const STATUS_LEGEND = [
@@ -74,12 +77,13 @@ export default function OfficialMapView() {
       </div>
 
       {/* Map */}
-      <div style={{ height: 520, borderRadius: 14, overflow: 'hidden', border: '1px solid #E8E5DE', position: 'relative', zIndex: 0 }}>
+      <div className="map-full" style={{ height: 520, borderRadius: 14, overflow: 'hidden', border: '1px solid #E8E5DE', position: 'relative', zIndex: 0 }}>
         <MapContainer
           center={center}
           zoom={12}
-          style={{ width: '100%', height: 520 }}
-          scrollWheelZoom
+          style={{ width: '100%', height: '100%' }}
+          scrollWheelZoom={!isTouch()}
+          preferCanvas
           attributionControl={false}
         >
           <TileLayer

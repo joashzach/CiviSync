@@ -252,13 +252,14 @@ export default function ReportIssue() {
                 </button>
               </div>
 
-              <div style={{ height: 210, borderRadius: 10, overflow: 'hidden', border: '1px solid #E8E5DE', zIndex: 0 }}>
+              <div style={{ height: 'clamp(180px, 35vw, 240px)', borderRadius: 10, overflow: 'hidden', border: '1px solid #E8E5DE', zIndex: 0 }}>
                 {location ? (
                   <MapContainer
                     center={[location.lat, location.lng]}
                     zoom={15}
-                    style={{ width: '100%', height: 210 }}
+                    style={{ width: '100%', height: '100%' }}
                     scrollWheelZoom
+                    preferCanvas
                     attributionControl={false}
                   >
                     <TileLayer

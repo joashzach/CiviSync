@@ -97,10 +97,12 @@ export default function ImageUpload({ onUploaded, onClear }) {
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
     >
+      {/* capture="environment" opens the back camera on mobile as primary option */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
@@ -114,10 +116,10 @@ export default function ImageUpload({ onUploaded, onClear }) {
         </div>
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-            Upload Issue Photo
+            Take Photo or Upload
           </p>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Drag & drop or click to browse
+            Tap to use camera or choose from gallery
           </p>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
             PNG, JPG, WEBP up to 10MB

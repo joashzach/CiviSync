@@ -379,6 +379,7 @@ export default function Landing() {
             zoom={12}
             style={{ width: '100%', height: '100%' }}
             scrollWheelZoom={false}
+            preferCanvas
             zoomControl
             attributionControl={false}
           >

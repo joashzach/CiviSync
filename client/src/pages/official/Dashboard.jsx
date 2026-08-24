@@ -112,7 +112,7 @@ export default function OfficialDashboard() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 14, marginBottom: 28 }}>
+      <div className="stat-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 28 }}>
         <StatCard icon={<FileText size={18} />}    value={stats?.total}      label="Total"       color="#011410" bgColor="#DFF0D8" />
         <StatCard icon={<Clock size={18} />}       value={stats?.pending}    label="Pending"     color="#D97706" bgColor="#FEF3C7" />
         <StatCard icon={<Briefcase size={18} />}   value={stats?.assigned}   label="Assigned"    color="#2563EB" bgColor="#DBEAFE" />
@@ -148,9 +148,9 @@ export default function OfficialDashboard() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table — desktop */}
       <div className="card" style={{ overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
+        <div className="data-table-wrapper" style={{ overflowX: 'auto' }}>
           <table className="data-table">
             <thead>
               <tr>

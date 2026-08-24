@@ -43,7 +43,7 @@ export default function CitizenDashboard() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 32 }}>
+      <div className="stat-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, marginBottom: 32 }}>
         <StatCard icon={<FileText size={19} />} value={stats?.total}      label="My Complaints" color="#011410" bgColor="#DFF0D8" />
         <StatCard icon={<Clock size={19} />}    value={stats?.pending}    label="Pending"       color="#D97706" bgColor="#FEF3C7" />
         <StatCard icon={<Zap size={19} />}      value={stats?.inProgress} label="In Progress"   color="#7C3AED" bgColor="#EDE9FE" />

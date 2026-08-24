@@ -81,7 +81,7 @@ export default function MyComplaints() {
 
       {/* Grid */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
           {[...Array(6)].map((_, i) => (
             <div key={i} className="skeleton" style={{ height: 260, borderRadius: 14 }} />
           ))}
@@ -102,7 +102,7 @@ export default function MyComplaints() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
           {complaints.map((c) => (
             <div
               key={c._id}
