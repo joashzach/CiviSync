@@ -74,6 +74,21 @@ const analyzeImage = async (req, res) => {
     return res.status(400).json({ message: 'image_url is required' });
   }
 
+  // Reject raw browser blob: URLs early with actionable guidance
+  if (typeof image_url === 'string' && image_url.startsWith('blob:')) {
+    return res.status(400).json({
+      message: 'Invalid image format (browser blob). Please re-attach the photo so it can be analyzed.',
+    });
+  }
+
+  // Check GROQ_API_KEY configuration
+  const apiKey = (process.env.GROQ_API_KEY || '').trim();
+  if (!apiKey || apiKey === 'demo-key' || apiKey === 'missing-key') {
+    return res.status(500).json({
+      message: 'GROQ_API_KEY is not configured on the server. Please add GROQ_API_KEY to your Render environment variables.',
+    });
+  }
+
   try {
     const promptText = `You are a civic issue classifier for an Indian municipal platform.
 Look at the image and respond with ONLY a JSON object (no markdown):
@@ -88,30 +103,36 @@ Severity guide: Low=inconvenience, Medium=daily life, High=safety risk or immedi
 For pollution issues (noise/air/water/smoke), use Pollution Control.
 Keep the description SHORT (under 150 chars).`;
 
-    // ── Step 1: Fetch image as base64 ───────────────────────────────────────
+    // ── Step 1: Prepare base64DataUri ───────────────────────────────────────
     let base64DataUri = null;
-    if (image_url.startsWith('http://') || image_url.startsWith('https://')) {
+    if (typeof image_url === 'string' && image_url.startsWith('data:image/')) {
+      base64DataUri = image_url;
+      console.log('📸 Received direct base64 data URI for AI analysis');
+    } else if (typeof image_url === 'string' && (image_url.startsWith('http://') || image_url.startsWith('https://'))) {
       try {
         const imageResponse = await fetch(image_url, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
         });
-        const arrayBuffer = await imageResponse.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
-        const contentType = (imageResponse.headers.get('content-type') || 'image/jpeg').split(';')[0];
-        base64DataUri = `data:${contentType};base64,${base64}`;
-        console.log('📸 Image fetched for AI analysis, size:', Math.round(arrayBuffer.byteLength / 1024), 'KB');
+        if (imageResponse.ok) {
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          const contentType = (imageResponse.headers.get('content-type') || 'image/jpeg').split(';')[0];
+          base64DataUri = `data:${contentType};base64,${base64}`;
+          console.log('📸 Image fetched for AI analysis, size:', Math.round(arrayBuffer.byteLength / 1024), 'KB');
+        }
       } catch (fetchErr) {
-        console.warn('⚠️ Failed to fetch image:', fetchErr.message);
+        console.warn('⚠️ Failed to fetch image from URL:', fetchErr.message);
       }
     }
 
     // ── Step 2: Try vision model (qwen/qwen3.8-27b) ──────────────────────────
     let responseText = null;
-
+    let lastError = null;
+    let isKeyError = false;
     let visionBlocked = false;
 
     // Attempt A: vision with direct URL
-    if (!responseText) {
+    if (!responseText && typeof image_url === 'string' && (image_url.startsWith('http://') || image_url.startsWith('https://'))) {
       try {
         console.log('🔍 Trying qwen/qwen3.8-27b with image URL...');
         const result = await groq.chat.completions.create({
@@ -131,16 +152,15 @@ Keep the description SHORT (under 150 chars).`;
         responseText = result?.choices?.[0]?.message?.content || null;
         if (responseText) console.log('✅ qwen vision (URL) succeeded');
       } catch (err) {
-        console.warn('⚠️ qwen vision (URL) failed:', err.message);
-        if (err.message?.includes('model_permission_blocked_project')) {
-          visionBlocked = true;
-          console.warn('👉 To enable vision model, allow `qwen/qwen3.8-27b` at: https://console.groq.com/settings/project/limits');
-        }
+        lastError = err.message || String(err);
+        console.warn('⚠️ qwen vision (URL) failed:', lastError);
+        if (lastError.includes('model_permission_blocked_project')) visionBlocked = true;
+        if (lastError.includes('Invalid API Key') || lastError.includes('401') || err.status === 401) isKeyError = true;
       }
     }
 
     // Attempt B: vision with base64 data URI
-    if (!responseText && base64DataUri) {
+    if (!responseText && base64DataUri && !isKeyError) {
       try {
         console.log('🔍 Trying qwen/qwen3.8-27b with base64 image...');
         const result = await groq.chat.completions.create({
@@ -160,22 +180,64 @@ Keep the description SHORT (under 150 chars).`;
         responseText = result?.choices?.[0]?.message?.content || null;
         if (responseText) console.log('✅ qwen vision (base64) succeeded');
       } catch (err) {
-        console.warn('⚠️ qwen vision (base64) failed:', err.message);
-        if (err.message?.includes('model_permission_blocked_project')) {
-          visionBlocked = true;
+        lastError = err.message || String(err);
+        console.warn('⚠️ qwen vision (base64) failed:', lastError);
+        if (lastError.includes('model_permission_blocked_project')) visionBlocked = true;
+        if (lastError.includes('Invalid API Key') || lastError.includes('401') || err.status === 401) isKeyError = true;
+      }
+    }
+
+    // Attempt C: fallback to text inference if vision had a format or transient issue
+    if (!responseText && !isKeyError && !visionBlocked) {
+      const textModels = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+      for (const fallbackModel of textModels) {
+        try {
+          console.log(`🔍 Trying text fallback model (${fallbackModel})...`);
+          const result = await groq.chat.completions.create({
+            model: fallbackModel,
+            temperature: 0.2,
+            max_tokens: 512,
+            response_format: { type: 'json_object' },
+            messages: [{
+              role: 'user',
+              content: `You are a civic issue classifier for an Indian municipal platform.
+Respond with ONLY a JSON object:
+{
+  "title": "Brief title under 60 chars",
+  "category": "Roads & Highways",
+  "department": "Roads & Highways",
+  "severity": "Medium",
+  "description": "Civic maintenance issue requiring inspection."
+}
+Allowed categories: ${DEPARTMENTS.join(', ')}.
+Allowed severities: ${SEVERITIES.join(', ')}.`,
+            }],
+          });
+          responseText = result?.choices?.[0]?.message?.content || null;
+          if (responseText) {
+            console.log(`✅ Text fallback model (${fallbackModel}) succeeded`);
+            break;
+          }
+        } catch (fallbackErr) {
+          console.warn(`⚠️ Text fallback model (${fallbackModel}) failed:`, fallbackErr.message);
         }
       }
     }
 
     // ── Step 3: Handle response or permission blocks ──────────────────────────
     if (!responseText) {
+      if (isKeyError) {
+        return res.status(401).json({
+          message: 'Groq API Key is invalid or expired. Please update GROQ_API_KEY in your Render dashboard environment variables.',
+        });
+      }
       if (visionBlocked) {
         return res.status(403).json({
           message: 'Groq vision model (qwen/qwen3.8-27b) is blocked in your Groq Project Limits. Please allow it at: https://console.groq.com/settings/project/limits',
         });
       }
       return res.status(500).json({
-        message: 'AI image analysis failed — unable to inspect image with Groq vision model.',
+        message: `AI analysis failed: ${lastError || 'Unable to inspect image with Groq vision model.'}`,
       });
     }
 

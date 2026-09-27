@@ -15,22 +15,31 @@ export default function ImageUpload({ onUploaded, onClear }) {
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    setPreview(objectUrl);
-    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64DataUrl = e.target.result;
+      setPreview(base64DataUrl);
+      setUploading(true);
 
-    try {
-      const result = await uploadImage(file);
-      onUploaded(result.url);
-      toast.success('Image attached');
-    } catch (err) {
-      console.warn('Upload notice:', err);
-      // Fallback: use local blob URL preview so form preview works seamlessly
-      onUploaded(objectUrl);
-      toast.success('Image attached');
-    } finally {
-      setUploading(false);
-    }
+      try {
+        const result = await uploadImage(file);
+        if (result?.url) {
+          onUploaded(result.url);
+          toast.success('Image uploaded');
+        } else {
+          onUploaded(base64DataUrl);
+          toast.success('Image attached');
+        }
+      } catch (err) {
+        console.warn('Image upload notice (using local data):', err);
+        // Fallback to base64 Data URL so AI analysis and complaint submission always work
+        onUploaded(base64DataUrl);
+        toast.success('Image attached');
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleDrop = (e) => {
