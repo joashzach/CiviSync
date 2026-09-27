@@ -610,17 +610,17 @@ select.input {
 
 /* ─── Image Upload Zone ───────────────────────────────────────────────────── */
 .upload-zone {
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: 30px;
+  border: 1.5px dashed #C8DDD6;
+  border-radius: 10px;
+  padding: 24px 20px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.18s ease;
-  background: var(--warm-ivory);
+  transition: all 0.2s ease;
+  background: #FAFDFB;
 }
 .upload-zone:hover, .upload-zone.dragging {
-  border-color: var(--forest);
-  background: var(--forest-light);
+  border-color: var(--sage, #5A8F8B);
+  background: #F0F7F4;
 }
 
 /* ─── Timeline ────────────────────────────────────────────────────────────── */
@@ -852,32 +852,280 @@ select.input {
   }
 }
 
-/* ─── Report Issue Grid ─────────────────────────────────────────────────── */
-.report-issue-grid {
+/* ─── Report Issue Layout (Mockup Inspired) ─────────────────────────────────── */
+.report-layout {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+
+.report-header {
+  margin-bottom: 24px;
+}
+
+.report-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--terracotta-dark, #BA5D42);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.report-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--charcoal, #161E1D);
+  letter-spacing: -0.6px;
+  line-height: 1.2;
+}
+
+.report-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid var(--border, #E5EFEB);
+  box-shadow: 0 2px 12px -1px rgba(22, 30, 29, 0.04), 0 1px 3px rgba(22, 30, 29, 0.02);
+  padding: 24px;
+  margin-bottom: 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-card:last-child {
+  margin-bottom: 0;
+}
+
+.report-card:hover {
+  border-color: #D2E3DE;
+}
+
+.report-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.report-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--charcoal, #161E1D);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.report-field {
+  margin-bottom: 18px;
+}
+
+.report-field:last-child {
+  margin-bottom: 0;
+}
+
+.report-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--stone, #64748B);
+  margin-bottom: 8px;
+}
+
+.report-input {
+  width: 100%;
+  background: #FAFDFB;
+  border: 1px solid var(--border, #E5EFEB);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  color: var(--charcoal, #161E1D);
+  font-family: inherit;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.report-input::placeholder {
+  color: #94A3B8;
+  font-size: 13.5px;
+}
+
+.report-input:focus {
+  outline: none;
+  background: #FFFFFF;
+  border-color: var(--sage, #5A8F8B);
+  box-shadow: 0 0 0 3px rgba(90, 143, 139, 0.14);
+}
+
+select.report-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+textarea.report-input {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+
+.severity-group {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
 
-.report-issue-form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+.severity-btn {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--border, #E5EFEB);
+  background: #FAFDFB;
+  color: var(--stone, #64748B);
+  cursor: pointer;
+  transition: all 0.16s ease;
+  text-align: center;
+  user-select: none;
 }
 
-/* ─── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 868px) {
-  .report-issue-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
+.severity-btn:hover {
+  background: #F4F8F7;
+  border-color: var(--border-strong, #D0DFDA);
+  color: var(--charcoal, #161E1D);
 }
 
-@media (max-width: 480px) {
-  .report-issue-form-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
+.severity-btn.active-low {
+  background: #EAF6EE;
+  border-color: #9FD6B0;
+  color: #166534;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(22, 101, 52, 0.12);
+}
+
+.severity-btn.active-medium {
+  background: #FEF3D6;
+  border-color: #F4CE75;
+  color: #854D0E;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(133, 77, 14, 0.12);
+}
+
+.severity-btn.active-high {
+  background: #FDEEE9;
+  border-color: #F3AFA0;
+  color: #991B1B;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(153, 27, 27, 0.12);
+}
+
+/* ── Unified Action Buttons (Submit, My Location, Fill with AI) ────── */
+.btn-submit-complaint,
+.btn-header-action,
+.btn-ai-fill {
+  background: var(--charcoal, #161E1D);
+  color: #FFFFFF;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-shadow: 0 2px 8px rgba(22, 30, 29, 0.14);
+  user-select: none;
+}
+
+.btn-submit-complaint:hover:not(:disabled),
+.btn-header-action:hover:not(:disabled),
+.btn-ai-fill:hover:not(:disabled) {
+  background: var(--forest, #011410);
+  box-shadow: 0 4px 16px rgba(1, 20, 16, 0.22);
+  transform: translateY(-1px);
+}
+
+.btn-submit-complaint:active:not(:disabled),
+.btn-header-action:active:not(:disabled),
+.btn-ai-fill:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-submit-complaint:disabled,
+.btn-header-action:disabled,
+.btn-ai-fill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-header-action,
+.btn-ai-fill {
+  padding: 8px 18px;
+  font-size: 12.5px;
+}
+
+.report-submit-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.btn-submit-complaint {
+  width: fit-content;
+  padding: 12px 36px;
+  font-size: 13.5px;
+  margin: 0;
+}
+
+.btn-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #FFFFFF;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.location-address-box {
+  margin-top: 14px;
+  padding: 11px 14px;
+  background: #FAFDFB;
+  border: 1px solid var(--border, #E5EFEB);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.location-address-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--stone, #64748B);
+  text-transform: uppercase;
+}
+
+.location-primary-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal, #161E1D);
+  margin: 0;
+  line-height: 1.4;
 }
 
 @media (max-width: 768px) {

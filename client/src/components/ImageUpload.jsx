@@ -48,7 +48,7 @@ export default function ImageUpload({ onUploaded, onClear }) {
 
   if (preview) {
     return (
-      <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
         <img
           src={preview}
           alt="Preview"
@@ -62,7 +62,7 @@ export default function ImageUpload({ onUploaded, onClear }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <div style={{
-              width: 32, height: 32, borderRadius: '50%',
+              width: 30, height: 30, borderRadius: '50%',
               border: '2.5px solid #E8E5DE', borderTopColor: '#011410',
               animation: 'spin 0.7s linear infinite',
             }} />
@@ -73,13 +73,13 @@ export default function ImageUpload({ onUploaded, onClear }) {
             onClick={handleClear}
             style={{
               position: 'absolute', top: 10, right: 10,
-              background: '#fff', border: '1px solid var(--border)',
-              borderRadius: '50%', width: 32, height: 32,
+              background: '#FFFFFF', border: '1px solid var(--border)',
+              borderRadius: 8, width: 30, height: 30,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
             }}
           >
-            <X size={15} />
+            <X size={15} color="#161E1D" />
           </button>
         )}
       </div>
@@ -102,22 +102,20 @@ export default function ImageUpload({ onUploaded, onClear }) {
         style={{ display: 'none' }}
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
         <div style={{
-          width: 52, height: 52, borderRadius: 12,
-          background: '#DFF0D8',
+          width: 44, height: 44, borderRadius: 10,
+          background: '#EBF3F0',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'transform 0.16s ease',
         }}>
-          <Upload size={22} color="#011410" />
+          <Upload size={18} color="#161E1D" strokeWidth={2.2} />
         </div>
-        <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-            Take Photo or Upload
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--charcoal, #161E1D)', margin: '4px 0 2px 0' }}>
+            Choose photo or drag and drop
           </p>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Tap to take a photo or select from gallery
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+          <p style={{ fontSize: 12, color: 'var(--stone, #64748B)', margin: 0 }}>
             PNG, JPG, WEBP up to 10MB
           </p>
         </div>

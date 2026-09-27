@@ -1,7 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  MapPin, Sparkles, CheckCircle2, LocateFixed,
-} from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import ImageUpload from '../../components/ImageUpload';
@@ -26,22 +23,22 @@ const CATEGORIES = [
   'Town Planning & Encroachment',
   'Pollution Control',
 ];
-const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
+const SEVERITIES = ['Low', 'Medium', 'High'];
 
 const DEFAULT_FORM = {
-  title: '', description: '', category: '', severity: '',
+  title: '', description: '', category: '', severity: 'Medium',
 };
 
 /** Custom pin icon for location marker */
 const pinIcon = L.divIcon({
   className: '',
   html: `<div style="
-    width:24px;height:24px;border-radius:50%;
-    background:#011410;border:3px solid #FFFFFF;
-    box-shadow:0 3px 12px rgba(0,0,0,0.3);
+    width:22px;height:22px;border-radius:50%;
+    background:#161E1D;border:3px solid #FFFFFF;
+    box-shadow:0 2px 10px rgba(0,0,0,0.3);
   "></div>`,
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
 });
 
 /** Click anywhere on the map to reposition the marker */
@@ -96,13 +93,13 @@ export default function ReportIssue() {
   const navigate = useNavigate();
   const [imageUrl, setImageUrl]     = useState('');
   const [analyzing, setAnalyzing]   = useState(false);
-  const [aiDone, setAiDone]         = useState(false);
   const [form, setForm]             = useState(DEFAULT_FORM);
   const [location, setLocation]     = useState(() => getCachedLocation() || DEFAULT_LOC);
   const [locating, setLocating]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [duplicate, setDuplicate]   = useState(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [address, setAddress]       = useState({ primary: '' });
   const userAdjustedRef = useRef(false);
 
   useEffect(() => {
@@ -117,7 +114,29 @@ export default function ReportIssue() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => { if (imageUrl) runAIAnalysis(imageUrl); }, [imageUrl]);
+  useEffect(() => {
+    if (!location?.lat || !location?.lng) return;
+    let active = true;
+    const fetchAddress = async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}`);
+        const data = await res.json();
+        if (active && data?.address) {
+          const a = data.address;
+          const primary = [a.suburb || a.neighbourhood || a.locality || a.city_district || a.road, a.city || a.town || a.county].filter(Boolean).join(', ') || 'Selected Location';
+          setAddress({ primary });
+        }
+      } catch (_) {
+        if (active) {
+          setAddress({
+            primary: `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
+          });
+        }
+      }
+    };
+    fetchAddress();
+    return () => { active = false; };
+  }, [location?.lat, location?.lng]);
 
   const detectLocation = async (force = false) => {
     setLocating(true);
@@ -126,9 +145,11 @@ export default function ReportIssue() {
       if (loc?.lat && loc?.lng) {
         userAdjustedRef.current = false;
         setLocation(loc);
+        if (force) toast.success('Location updated');
       }
     } catch {
       setLocation(getCachedLocation() || DEFAULT_LOC);
+      if (force) toast.error('Could not detect current location');
     } finally {
       setLocating(false);
     }
@@ -140,20 +161,25 @@ export default function ReportIssue() {
   };
 
   const runAIAnalysis = async (url) => {
+    if (!url) {
+      toast.error('Please upload an issue photo first');
+      return;
+    }
     setAnalyzing(true);
-    setAiDone(false);
     try {
       const result = await analyzeImage(url);
+      let sev = result.severity || 'Medium';
+      if (sev === 'Critical') sev = 'High';
+      if (!SEVERITIES.includes(sev)) sev = 'Medium';
       setForm({
         title: result.title || '',
         description: result.description || '',
         category: result.category || '',
-        severity: result.severity || '',
+        severity: sev,
       });
-      setAiDone(true);
-      toast.success('AI analysis complete! Review and submit.');
-    } catch {
-      toast.error('AI analysis failed. Please fill in the form manually.');
+      toast.success('Form filled with AI!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'AI analysis failed. Please fill in the form manually.');
     } finally {
       setAnalyzing(false);
     }
@@ -203,199 +229,173 @@ export default function ReportIssue() {
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-title">Report an Issue</h1>
-        <p className="page-subtitle">
-          Upload a photo — our AI will auto-fill the details for you.
-        </p>
+    <div className="report-layout animate-fade-in">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="report-header">
+        <span className="report-eyebrow">NEW COMPLAINT</span>
+        <h1 className="report-title">Report an issue</h1>
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="report-issue-grid">
-          {/* ── Left Column ───────────────────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {/* Image Upload */}
-            <div className="card" style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 14, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
-                Issue Photo
-              </h3>
-              <ImageUpload
-                onUploaded={(url) => setImageUrl(url)}
-                onClear={() => { setImageUrl(''); setAiDone(false); setForm(DEFAULT_FORM); }}
-              />
-            </div>
+        {/* ── Card 1: Issue Photo ───────────────────────────────── */}
+        <div className="report-card">
+          <div className="report-card-header">
+            <h3 className="report-card-title">Issue photo</h3>
+          </div>
+          <ImageUpload
+            onUploaded={(url) => setImageUrl(url)}
+            onClear={() => setImageUrl('')}
+          />
+        </div>
 
-            {/* AI Status */}
-            {imageUrl && (
-              <div className="card" style={{ padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {analyzing ? (
-                    <>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        border: '2.5px solid #E8E5DE', borderTopColor: '#011410',
-                        animation: 'spin 0.7s linear infinite', flexShrink: 0,
-                      }} />
-                      <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1C1E' }}>Analysing with AI...</p>
-                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Detecting category &amp; severity</p>
-                      </div>
-                    </>
-                  ) : aiDone ? (
-                    <>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#DFF0D8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <CheckCircle2 size={17} color="#011410" />
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#011410' }}>AI Analysis Complete</p>
-                        <p style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Form auto-filled. Review before submitting.</p>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
+        {/* ── Card 2: Issue Location (Second) ───────────────────── */}
+        <div className="report-card">
+          <div className="report-card-header">
+            <h3 className="report-card-title">Issue location</h3>
+            <button
+              type="button"
+              className="btn-header-action"
+              onClick={() => detectLocation(true)}
+              disabled={locating}
+            >
+              {locating ? (
+                <>
+                  <div className="btn-spinner" />
+                  <span>Locating...</span>
+                </>
+              ) : (
+                <span>My location</span>
+              )}
+            </button>
+          </div>
+
+          <div style={{ height: 210, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', zIndex: 0 }}>
+            {location ? (
+              <MapContainer
+                center={[location.lat, location.lng]}
+                zoom={15}
+                style={{ width: '100%', height: '100%' }}
+                scrollWheelZoom
+                preferCanvas
+                attributionControl={false}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <FlyTo position={location} />
+                <ClickHandler onMapClick={handleLocationChange} />
+                <LocationMarker position={location} onChange={handleLocationChange} />
+              </MapContainer>
+            ) : (
+              <div style={{
+                height: '100%', background: '#F4F8F7',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  {locating ? 'Detecting location...' : 'Location not available'}
+                </p>
               </div>
             )}
+          </div>
 
-            {/* Map — Location Picker */}
-            <div className="card" style={{ padding: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div>
-                  <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#1C1C1E' }}>Issue Location</h3>
-                  <p style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 2 }}>
-                    Default is your current location. Click map or drag pin to change.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => detectLocation(true)}
-                  disabled={locating}
-                >
-                  <LocateFixed size={12} />
-                  {locating ? 'Locating...' : 'My Location'}
-                </button>
-              </div>
+          {address.primary && (
+            <div className="location-address-box">
+              <span className="location-address-label">DETECTED LOCATION</span>
+              <p className="location-primary-text">{address.primary}</p>
+            </div>
+          )}
+        </div>
 
-              <div style={{ height: 'clamp(180px, 35vw, 240px)', borderRadius: 10, overflow: 'hidden', border: '1px solid #E8E5DE', zIndex: 0 }}>
-                {location ? (
-                  <MapContainer
-                    center={[location.lat, location.lng]}
-                    zoom={15}
-                    style={{ width: '100%', height: '100%' }}
-                    scrollWheelZoom
-                    preferCanvas
-                    attributionControl={false}
-                  >
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <FlyTo position={location} />
-                    <ClickHandler onMapClick={handleLocationChange} />
-                    <LocationMarker position={location} onChange={handleLocationChange} />
-                  </MapContainer>
-                ) : (
-                  <div style={{
-                    height: '100%', background: '#DFF0D8',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexDirection: 'column', gap: 8,
-                  }}>
-                    <MapPin size={22} color="#4A7A44" />
-                    <p style={{ fontSize: 13, color: '#6B6B6B' }}>
-                      {locating ? 'Detecting location...' : 'Location not available'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {location && (
-                <p style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 8 }}>
-                  📍 {location.lat.toFixed(4)}, {location.lng.toFixed(4)} — Click map or drag pin to adjust
-                </p>
+        {/* ── Card 3: Complaint Details (Third) ─────────────────── */}
+        <div className="report-card">
+          <div className="report-card-header">
+            <h3 className="report-card-title">Complaint details</h3>
+            <button
+              type="button"
+              className="btn-header-action"
+              onClick={() => runAIAnalysis(imageUrl)}
+              disabled={analyzing}
+            >
+              {analyzing ? (
+                <>
+                  <div className="btn-spinner" />
+                  <span>Analyzing...</span>
+                </>
+              ) : (
+                <span>Fill with AI</span>
               )}
+            </button>
+          </div>
+
+          {/* Title */}
+          <div className="report-field">
+            <label className="report-label">TITLE</label>
+            <input
+              className="report-input"
+              placeholder="Brief description of the issue"
+              value={form.title}
+              onChange={update('title')}
+              required
+            />
+          </div>
+
+          {/* Category */}
+          <div className="report-field">
+            <label className="report-label">CATEGORY</label>
+            <select className="report-input" value={form.category} onChange={update('category')} required>
+              <option value="">Select category</option>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Severity (Segmented Buttons) */}
+          <div className="report-field">
+            <label className="report-label">SEVERITY</label>
+            <div className="severity-group">
+              {SEVERITIES.map((s) => {
+                const isSelected = form.severity === s;
+                const activeClass = isSelected ? `active-${s.toLowerCase()}` : '';
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`severity-btn ${activeClass}`}
+                    onClick={() => setForm((prev) => ({ ...prev, severity: s }))}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* ── Right Column ──────────────────────────────────────────────── */}
-          <div className="card" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: '#DFF0D8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles size={15} color="#011410" />
-              </div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1C1C1E', letterSpacing: '-0.1px' }}>
-                Complaint Details
-              </h3>
-              {aiDone && (
-                <span style={{
-                  fontSize: 11, background: '#DFF0D8', color: '#011410',
-                  padding: '2px 9px', borderRadius: 100, fontWeight: 600,
-                  border: '1px solid rgba(26,58,10,0.2)',
-                }}>
-                  AI Filled
-                </span>
+          {/* Description */}
+          <div className="report-field">
+            <label className="report-label">DESCRIPTION</label>
+            <textarea
+              className="report-input"
+              placeholder="Describe the issue in detail..."
+              value={form.description}
+              onChange={update('description')}
+              required
+              rows={4}
+            />
+          </div>
+
+          {/* Submit Complaint CTA */}
+          <div className="report-submit-row">
+            <button
+              type="submit"
+              className="btn-submit-complaint"
+              disabled={submitting || !imageUrl || !location}
+            >
+              {submitting ? (
+                <>
+                  <div className="btn-spinner" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <span>Submit complaint</span>
               )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-              {/* Title */}
-              <div>
-                <label className="label">Complaint Title *</label>
-                <input
-                  className="input"
-                  placeholder="Brief description of the issue"
-                  value={form.title}
-                  onChange={update('title')}
-                  required
-                />
-              </div>
-
-              {/* Category & Severity */}
-              <div className="report-issue-form-row">
-                <div>
-                  <label className="label">Category *</label>
-                  <select className="input" value={form.category} onChange={update('category')} required>
-                    <option value="">Select category</option>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Severity *</label>
-                  <select className="input" value={form.severity} onChange={update('severity')} required>
-                    <option value="">Select severity</option>
-                    {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="label">Description *</label>
-                <textarea
-                  className="input"
-                  placeholder="Describe the issue in detail..."
-                  value={form.description}
-                  onChange={update('description')}
-                  required
-                  rows={5}
-                />
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg"
-                style={{ width: '100%', marginTop: 6 }}
-                disabled={submitting || !imageUrl || !location}
-              >
-                {submitting ? 'Submitting...' : 'Submit Complaint'}
-              </button>
-
-              {!imageUrl && (
-                <p style={{ fontSize: 12, color: '#6B6B6B', textAlign: 'center' }}>
-                  Upload an image to enable submission
-                </p>
-              )}
-            </div>
+            </button>
           </div>
         </div>
       </form>

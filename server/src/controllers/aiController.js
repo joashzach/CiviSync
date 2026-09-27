@@ -10,7 +10,7 @@ const DEPARTMENTS = [
   'Pollution Control',
 ];
 
-const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
+const SEVERITIES = ['Low', 'Medium', 'High'];
 
 /**
  * Attempt to repair truncated JSON from LLM output.
@@ -84,7 +84,7 @@ Look at the image and respond with ONLY a JSON object (no markdown):
   "severity": "One of: ${SEVERITIES.join(' | ')}",
   "description": "1-2 sentence description of the civic issue."
 }
-Severity guide: Low=inconvenience, Medium=daily life, High=safety risk, Critical=immediate danger.
+Severity guide: Low=inconvenience, Medium=daily life, High=safety risk or immediate danger.
 For pollution issues (noise/air/water/smoke), use Pollution Control.
 Keep the description SHORT (under 150 chars).`;
 
@@ -105,17 +105,21 @@ Keep the description SHORT (under 150 chars).`;
       }
     }
 
-    // ── Step 2: Try vision model (qwen/qwen3.6-27b) ──────────────────────────
+    // ── Step 2: Try vision model (qwen/qwen3.8-27b) ──────────────────────────
     let responseText = null;
+
+    let visionBlocked = false;
 
     // Attempt A: vision with direct URL
     if (!responseText) {
       try {
-        console.log('🔍 Trying qwen/qwen3.6-27b with image URL...');
+        console.log('🔍 Trying qwen/qwen3.8-27b with image URL...');
         const result = await groq.chat.completions.create({
-          model: 'qwen/qwen3.6-27b',
+          model: 'qwen/qwen3.8-27b',
           temperature: 0.2,
           max_tokens: 1024,
+          reasoning_format: 'hidden',
+          response_format: { type: 'json_object' },
           messages: [{
             role: 'user',
             content: [
@@ -129,7 +133,8 @@ Keep the description SHORT (under 150 chars).`;
       } catch (err) {
         console.warn('⚠️ qwen vision (URL) failed:', err.message);
         if (err.message?.includes('model_permission_blocked_project')) {
-          console.warn('👉 To enable vision model, allow `qwen/qwen3.6-27b` at: https://console.groq.com/settings/project/limits');
+          visionBlocked = true;
+          console.warn('👉 To enable vision model, allow `qwen/qwen3.8-27b` at: https://console.groq.com/settings/project/limits');
         }
       }
     }
@@ -137,11 +142,13 @@ Keep the description SHORT (under 150 chars).`;
     // Attempt B: vision with base64 data URI
     if (!responseText && base64DataUri) {
       try {
-        console.log('🔍 Trying qwen/qwen3.6-27b with base64 image...');
+        console.log('🔍 Trying qwen/qwen3.8-27b with base64 image...');
         const result = await groq.chat.completions.create({
-          model: 'qwen/qwen3.6-27b',
+          model: 'qwen/qwen3.8-27b',
           temperature: 0.2,
           max_tokens: 1024,
+          reasoning_format: 'hidden',
+          response_format: { type: 'json_object' },
           messages: [{
             role: 'user',
             content: [
@@ -154,40 +161,22 @@ Keep the description SHORT (under 150 chars).`;
         if (responseText) console.log('✅ qwen vision (base64) succeeded');
       } catch (err) {
         console.warn('⚠️ qwen vision (base64) failed:', err.message);
-      }
-    }
-
-    // Attempt C: fallback with available text models (openai/gpt-oss-20b, openai/gpt-oss-120b)
-    if (!responseText) {
-      const fallbackModels = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
-      for (const fallbackModel of fallbackModels) {
-        try {
-          console.log(`🔍 Trying ${fallbackModel} text analysis fallback...`);
-          const textOnlyPrompt = `${promptText}\n\nImage URL context: ${image_url}\nPlease provide civic issue classification JSON.`;
-
-          const result = await groq.chat.completions.create({
-            model: fallbackModel,
-            temperature: 0.1,
-            max_tokens: 512,
-            messages: [{
-              role: 'user',
-              content: textOnlyPrompt,
-            }],
-          });
-          responseText = result?.choices?.[0]?.message?.content || null;
-          if (responseText) {
-            console.log(`✅ ${fallbackModel} fallback succeeded`);
-            break;
-          }
-        } catch (err) {
-          console.warn(`⚠️ ${fallbackModel} fallback failed:`, err.message);
+        if (err.message?.includes('model_permission_blocked_project')) {
+          visionBlocked = true;
         }
       }
     }
 
-    // ── Step 3: Parse the response ──────────────────────────────────────────
+    // ── Step 3: Handle response or permission blocks ──────────────────────────
     if (!responseText) {
-      throw new Error('All Groq AI attempts failed — no response received');
+      if (visionBlocked) {
+        return res.status(403).json({
+          message: 'Groq vision model (qwen/qwen3.8-27b) is blocked in your Groq Project Limits. Please allow it at: https://console.groq.com/settings/project/limits',
+        });
+      }
+      return res.status(500).json({
+        message: 'AI image analysis failed — unable to inspect image with Groq vision model.',
+      });
     }
 
     console.log('📝 Raw AI response length:', responseText.length, 'chars');
@@ -209,12 +198,8 @@ Keep the description SHORT (under 150 chars).`;
     return res.json(safe);
   } catch (err) {
     console.error('❌ Groq AI analysis error:', err.message || err);
-    return res.json({
-      title: 'Civic Issue Reported',
-      category: 'Sanitation',
-      department: 'Sanitation',
-      severity: 'Medium',
-      description: 'Issue reported at this location. Please inspect the attached photo for details.',
+    return res.status(500).json({
+      message: err.message || 'AI analysis error',
     });
   }
 };
