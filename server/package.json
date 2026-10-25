@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "seed:officials": "node src/scripts/seedOfficials.js",
+    "set:password": "node src/scripts/setOfficialPassword.js"
   },
   "dependencies": {
     "cloudinary": "^2.5.1",
